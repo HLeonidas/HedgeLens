@@ -1,28 +1,41 @@
-<header class="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-5">
-  <div class="flex items-center gap-6">
-    <div>
-      <h1 class="text-xl font-semibold text-slate-900">Time-Value Analysis</h1>
-      <p class="text-xs text-slate-500">Market closes in 2h 45m</p>
+<header class="flex flex-col gap-4 px-4 sm:px-6 lg:px-8 py-4 bg-white border-b border-border-light sm:flex-row sm:items-center sm:justify-between">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+    <div class="flex items-center gap-3">
+      <button
+        class="lg:hidden inline-flex items-center justify-center size-9 rounded-lg border border-border-light text-slate-600 hover:bg-slate-50 transition-colors"
+        type="button"
+        aria-label="Toggle sidebar"
+        (click)="toggleSidebar.emit()"
+      >
+        <span class="material-symbols-outlined text-lg">menu</span>
+      </button>
+      <h1 class="text-xl font-bold text-slate-900 tracking-tight">{{ title }}</h1>
     </div>
-    <div class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500 lg:flex">
-      <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-      Live pricing enabled
+    <div class="hidden sm:block h-6 w-px bg-slate-200"></div>
+    <div class="flex items-center gap-4" *ngIf="subtitle">
+      <div class="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
+        <span class="material-symbols-outlined text-sm">swap_horiz</span>
+        {{ subtitle }}
+      </div>
     </div>
   </div>
 
-  <div class="flex items-center gap-3">
-    <div class="relative hidden items-center lg:flex">
-      <ng-icon name="tablerSearch" size="18" class="absolute left-3 text-slate-400"></ng-icon>
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 w-full sm:w-auto">
+    <label class="flex items-center bg-slate-50 border border-border-light rounded-lg px-3 py-1.5 focus-within:ring-2 ring-accent/20 transition-all w-full sm:w-auto">
+      <span class="material-symbols-outlined text-slate-400 text-xl">search</span>
       <input
-        class="w-72 rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-700 shadow-sm"
-        placeholder="Search ISIN, ticker..."
+        class="bg-transparent border-none focus:ring-0 text-sm w-full sm:w-64 placeholder:text-slate-400 text-slate-900"
+        placeholder="Add comparison asset..."
+        type="text"
       />
+    </label>
+    <div class="flex flex-wrap gap-2">
+      <button class="p-2 rounded-lg border border-border-light text-slate-500 hover:bg-slate-50 transition-colors">
+        <span class="material-symbols-outlined">download</span>
+      </button>
+      <button class="p-2 rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors shadow-sm px-4 flex items-center gap-2 w-full sm:w-auto justify-center">
+        <span class="text-sm font-bold">New Analysis</span>
+      </button>
     </div>
-    <button class="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500">
-      <ng-icon name="tablerBell" size="18"></ng-icon>
-    </button>
-    <button class="grid h-9 w-9 place-items-center rounded-xl bg-slate-900 text-white">
-      <ng-icon name="tablerUserCircle" size="18"></ng-icon>
-    </button>
   </div>
 </header>

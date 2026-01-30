@@ -1,0 +1,73 @@
+<div class="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6 bg-white">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h2 class="text-2xl font-black text-slate-900">Crypto Portfolio</h2>
+      <p class="text-sm text-slate-500">Track crypto positions with target prices and performance.</p>
+    </div>
+    <button class="px-4 py-2 rounded-lg bg-accent text-white text-sm font-bold">Add Crypto</button>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 p-6 rounded-2xl border border-border-light bg-white shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Open Positions</h3>
+        <span class="text-xs font-semibold text-slate-500">Live prices</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[680px] text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-border-light">
+              <th class="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset</th>
+              <th class="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Holdings</th>
+              <th class="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Buy-in</th>
+              <th class="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Current</th>
+              <th class="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target</th>
+              <th class="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Gain %</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50/50">
+              <td class="p-3 text-sm font-bold text-slate-900">Bitcoin (BTC)</td>
+              <td class="p-3 text-sm font-mono text-right">0.85</td>
+              <td class="p-3 text-sm font-mono text-right">$31,200</td>
+              <td class="p-3 text-sm font-mono text-right">$42,100</td>
+              <td class="p-3 text-sm font-mono text-right">$55,000</td>
+              <td class="p-3 text-sm font-bold text-right text-emerald-600">+34.9%</td>
+            </tr>
+            <tr class="hover:bg-slate-50/50">
+              <td class="p-3 text-sm font-bold text-slate-900">Solana (SOL)</td>
+              <td class="p-3 text-sm font-mono text-right">32.3</td>
+              <td class="p-3 text-sm font-mono text-right">$98.40</td>
+              <td class="p-3 text-sm font-mono text-right">$128.10</td>
+              <td class="p-3 text-sm font-mono text-right">$220.00</td>
+              <td class="p-3 text-sm font-bold text-right text-emerald-600">+30.2%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="p-6 rounded-2xl border border-border-light bg-slate-50">
+      <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">Add Crypto</h3>
+      <div class="flex flex-col gap-4">
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase">Symbol</label>
+          <input class="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm" placeholder="BTC" />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase">Holdings</label>
+          <input class="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm" placeholder="0.5" />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase">Buy-in Price</label>
+          <input class="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm" placeholder="30000" />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase">Target Price</label>
+          <input class="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm" placeholder="50000" />
+        </div>
+        <button class="mt-2 w-full rounded-lg bg-slate-900 text-white text-sm font-bold py-2">Lookup & Save</button>
+      </div>
+    </div>
+  </div>
+</div>
