@@ -21,6 +21,13 @@ body {
   textarea {
     @apply bg-surface-light text-slate-900 dark:bg-slate-800 dark:text-slate-100;
   }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.25);
+    outline-offset: 2px;
+  }
 }
 
 .material-symbols-outlined {

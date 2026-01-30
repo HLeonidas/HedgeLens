@@ -82,6 +82,7 @@ The main overview of all user-owned projects.
   - Balanced
   - Aggressive
   - Custom
+- **Underlying Asset / Ticker** (optional, e.g. `NASDAQ:COIN`)
 - **Project Color**
   - Used for visual identification (dot, headers, charts)
 

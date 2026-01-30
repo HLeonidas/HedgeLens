@@ -4,6 +4,17 @@ export type CreateProjectInput = {
   name: string;
   baseCurrency?: string;
   riskProfile?: "conservative" | "balanced" | "aggressive";
+  description?: string;
+  underlyingSymbol?: string;
+  color?: string;
+};
+
+export type UpdateProjectInput = {
+  name?: string;
+  baseCurrency?: string;
+  description?: string;
+  underlyingSymbol?: string;
+  color?: string;
 };
 
 export type CreatePositionInput = {
@@ -131,6 +142,30 @@ const createProjectSchema = z.object({
     .optional()
     .transform((value) => (value ? value.toUpperCase() : undefined)),
   riskProfile: z.enum(["conservative", "balanced", "aggressive"]).optional(),
+  description: z.string().trim().max(240, "Description is too long").optional(),
+  underlyingSymbol: z.string().trim().max(24, "Underlying symbol is too long").optional(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#([0-9a-fA-F]{6})$/, "Color must be a hex value")
+    .optional(),
+});
+
+const updateProjectSchema = z.object({
+  name: z.string().trim().min(1, "Project name is required").max(80, "Project name is too long").optional(),
+  baseCurrency: z
+    .string()
+    .trim()
+    .max(8, "Base currency is too long")
+    .optional()
+    .transform((value) => (value ? value.toUpperCase() : undefined)),
+  description: z.string().trim().max(240, "Description is too long").optional(),
+  underlyingSymbol: z.string().trim().max(24, "Underlying symbol is too long").optional(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#([0-9a-fA-F]{6})$/, "Color must be a hex value")
+    .optional(),
 });
 
 function toValidationResult<T>(result: z.SafeParseReturnType<unknown, T>): ValidationResult<T> {
@@ -144,6 +179,10 @@ function toValidationResult<T>(result: z.SafeParseReturnType<unknown, T>): Valid
 
 export function validateCreateProject(input: unknown): ValidationResult<CreateProjectInput> {
   return toValidationResult(createProjectSchema.safeParse(input));
+}
+
+export function validateUpdateProject(input: unknown): ValidationResult<UpdateProjectInput> {
+  return toValidationResult(updateProjectSchema.safeParse(input));
 }
 
 export function validateCreatePosition(input: unknown): ValidationResult<CreatePositionInput> {

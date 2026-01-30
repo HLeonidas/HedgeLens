@@ -8,6 +8,9 @@ export type Project = {
   id: string;
   ownerId: string;
   name: string;
+  description?: string | null;
+  underlyingSymbol?: string | null;
+  color?: string | null;
   baseCurrency: string;
   riskProfile: "conservative" | "balanced" | "aggressive" | null;
   createdAt: string;
@@ -173,6 +176,9 @@ export async function createProject(
     name: string;
     baseCurrency?: string;
     riskProfile?: Project["riskProfile"];
+    description?: string | null;
+    underlyingSymbol?: string | null;
+    color?: string | null;
   }
 ) {
   const redis = getRedis();
@@ -182,6 +188,9 @@ export async function createProject(
     id: projectId,
     ownerId: userId,
     name: input.name,
+    description: input.description ?? null,
+    underlyingSymbol: input.underlyingSymbol ?? null,
+    color: input.color ?? null,
     baseCurrency: input.baseCurrency ?? "EUR",
     riskProfile: input.riskProfile ?? null,
     createdAt: now,
@@ -203,6 +212,36 @@ export async function getProject(userId: string, projectId: string) {
   if (!project) return null;
   if (project.ownerId !== userId) return null;
   return project;
+}
+
+export async function updateProject(
+  userId: string,
+  projectId: string,
+  input: Partial<
+    Pick<Project, "name" | "baseCurrency" | "description" | "underlyingSymbol" | "color">
+  >
+) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const now = new Date().toISOString();
+  const updated: Project = {
+    ...project,
+    ...input,
+    id: project.id,
+    ownerId: project.ownerId,
+    createdAt: project.createdAt,
+    updatedAt: now,
+  };
+
+  await redis.set(projectKey(projectId), updated);
+  await redis.zadd(userProjectsKey(userId), {
+    score: Date.parse(now),
+    member: projectId,
+  });
+
+  return updated;
 }
 
 export async function listPositions(projectId: string) {

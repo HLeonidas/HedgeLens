@@ -9,6 +9,8 @@ type Project = {
 	name: string;
 	baseCurrency: string;
 	riskProfile: "conservative" | "balanced" | "aggressive" | null;
+	underlyingSymbol?: string | null;
+	color?: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -49,10 +51,10 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [currencyFilter, setCurrencyFilter] = useState("all");
 	const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
-	const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [description, setDescription] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [underlyingSymbol, setUnderlyingSymbol] = useState("");
+  const [color, setColor] = useState("#2563eb");
 
 	const canCreate = useMemo(() => Boolean(name.trim()), [name]);
 
@@ -118,6 +120,8 @@ export default function ProjectsPage() {
           baseCurrency: baseCurrency.trim(),
           riskProfile: riskProfile || undefined,
           description: description.trim() || undefined,
+          underlyingSymbol: underlyingSymbol.trim() || undefined,
+          color: color.trim() || undefined,
         }),
       });
 
@@ -136,6 +140,8 @@ export default function ProjectsPage() {
       setName("");
       setRiskProfile("");
       setDescription("");
+      setUnderlyingSymbol("");
+      setColor("#2563eb");
       setShowCreate(false);
       if (createdProject?.id) {
         router.push(`/projects/${createdProject.id}`);
@@ -190,11 +196,15 @@ export default function ProjectsPage() {
     return "bg-sky-500";
   }
 
-  function projectColor(projectId: string) {
+  function projectColor(projectId: string, customColor?: string | null) {
+    if (customColor) {
+      return { style: { backgroundColor: customColor }, textClass: "text-white", className: "" };
+    }
     const index = Math.abs(
       projectId.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0)
     );
-    return projectColorPalette[index % projectColorPalette.length];
+    const palette = projectColorPalette[index % projectColorPalette.length];
+    return { className: `${palette.bg} ${palette.text}`, textClass: "" };
   }
 
   function riskIcon(profile: Project["riskProfile"]) {
@@ -218,24 +228,15 @@ export default function ProjectsPage() {
     };
   }
 
+  function underlyingTag(symbol?: string | null) {
+    if (!symbol) return "—";
+    const trimmed = symbol.replace(/\s+/g, "");
+    return trimmed.slice(-4).toUpperCase();
+  }
+
 	function handleRowClick(projectId: string) {
 		router.push(`/projects/${projectId}`);
 	}
-
-  async function handleDeleteProject(projectId: string) {
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Unable to delete project");
-      }
-      setDeleteTarget(null);
-      await loadProjects();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to delete project";
-      setListError(message);
-    }
-  }
 
 	return (
 		<div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
@@ -296,10 +297,7 @@ export default function ProjectsPage() {
 					</div>
 				</div>
 
-						<div
-							className="rounded-2xl border border-border-light bg-white shadow-sm"
-							onClick={() => setOpenMenuId(null)}
-						>
+						<div className="rounded-2xl border border-border-light bg-white shadow-sm">
 				{listError ? (
 					<div className="rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-rose-700">
 						{listError}
@@ -332,14 +330,13 @@ export default function ProjectsPage() {
             <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full min-w-[980px] text-left border-collapse">
                 <thead>
-                  <tr className="text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-border-light">
+                  <tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
                     <th className="px-6 py-4">Projektname</th>
                     <th className="px-6 py-4">Basiswährung</th>
                     <th className="px-6 py-4">Risikoprofil</th>
                     <th className="px-6 py-4">Put/Call Ratio</th>
                     <th className="px-6 py-4">Positionen</th>
                     <th className="px-6 py-4">Zuletzt aktualisiert</th>
-                    <th className="px-6 py-4 text-right">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-light">
@@ -348,7 +345,7 @@ export default function ProjectsPage() {
                     const ratio = ratiosById[project.id] ?? null;
                     const positions = positionsById[project.id] ?? 0;
                     const iconMeta = riskIcon(project.riskProfile);
-                    const colorMeta = projectColor(project.id);
+                    const colorMeta = projectColor(project.id, project.color);
                     const isLastRow = index === filteredProjects.length - 1;
                     return (
                       <tr
@@ -367,10 +364,11 @@ export default function ProjectsPage() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div
-                              className={`w-8 h-8 rounded flex items-center justify-center ${colorMeta.bg} ${colorMeta.text}`}
+                              className={`w-8 h-8 rounded flex items-center justify-center ${colorMeta.className ?? ""} ${colorMeta.textClass ?? ""}`}
+                              style={colorMeta.style}
                             >
-                              <span className="material-symbols-outlined text-sm">
-                                {iconMeta.icon}
+                              <span className="text-[10px] font-bold tracking-widest">
+                                {underlyingTag(project.underlyingSymbol)}
                               </span>
                             </div>
                             <div className="flex flex-col">
@@ -407,7 +405,12 @@ export default function ProjectsPage() {
                                   : "bg-red-100 text-red-600 border-red-200"
                             }`}
                           >
-                            {riskBadge.label}
+                            <span className="inline-flex items-center gap-1 leading-none">
+                              <span className="material-symbols-outlined text-[12px]">
+                                {iconMeta.icon}
+                              </span>
+                              {riskBadge.label}
+                            </span>
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -425,50 +428,11 @@ export default function ProjectsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-700">
+                        <td className="px-6 py-4 font-medium text-sm text-slate-700">
                           {positions}
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-500">
+                        <td className="px-6 font-medium py-4 text-sm text-slate-600">
                           {new Date(project.updatedAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="relative inline-flex items-center">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setOpenMenuId((prev) => (prev === project.id ? null : project.id));
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-slate-200 rounded transition-all"
-                            >
-                              <span className="material-symbols-outlined text-lg text-slate-500">
-                                more_vert
-                              </span>
-                            </button>
-                            {openMenuId === project.id ? (
-                              <div
-                                className={[
-                                  "absolute right-0 z-10 w-44 rounded-lg border border-border-light bg-white shadow-lg overflow-hidden",
-                                  isLastRow ? "bottom-10" : "top-8",
-                                ]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenMenuId(null);
-                                    setDeleteTarget(project);
-                                  }}
-                                  className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2"
-                                >
-                                  <span className="material-symbols-outlined text-base">delete</span>
-                                  Delete project
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
                         </td>
                       </tr>
                     );
@@ -579,6 +543,36 @@ export default function ProjectsPage() {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-[auto,1fr] gap-3 items-center">
+            <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+              Projektfarbe
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+                className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
+              />
+              <input
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+                className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
+                placeholder="#2563eb"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+              Underlying Asset (Ticker)
+            </label>
+            <input
+              value={underlyingSymbol}
+              onChange={(event) => setUnderlyingSymbol(event.target.value)}
+              className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+              placeholder="z.B. NASDAQ:COIN"
+            />
+          </div>
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
               Beschreibung (Optional)
@@ -622,63 +616,6 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      <div
-        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 ${
-          deleteTarget ? "" : "hidden"
-        }`}
-        onClick={() => setDeleteTarget(null)}
-      />
-      <div
-        className={`fixed inset-0 z-[60] flex items-center justify-center px-4 ${
-          deleteTarget ? "" : "pointer-events-none"
-        }`}
-        onClick={() => setDeleteTarget(null)}
-        aria-hidden={!deleteTarget}
-      >
-        <div
-          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
-            deleteTarget ? "scale-100 opacity-100" : "scale-95 opacity-0"
-          }`}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="p-6 border-b border-border-light flex items-start gap-4">
-            <div className="h-10 w-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-xl">warning</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Projekt löschen</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                Diese Aktion kann nicht rückgängig gemacht werden.
-              </p>
-            </div>
-          </div>
-          <div className="p-6">
-            <p className="text-sm text-slate-600">
-              Möchten Sie das Projekt{" "}
-              <span className="font-semibold text-slate-900">
-                {deleteTarget?.name ?? "dieses Projekt"}
-              </span>{" "}
-              wirklich löschen? Alle Positionen werden entfernt.
-            </p>
-          </div>
-          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
-            <button
-              type="button"
-              onClick={() => setDeleteTarget(null)}
-              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              onClick={() => deleteTarget?.id && handleDeleteProject(deleteTarget.id)}
-              className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
-            >
-              Projekt löschen
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1,11 +1,16 @@
+
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Menu } from "@headlessui/react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 type Project = {
   id: string;
   name: string;
+  description?: string | null;
+  underlyingSymbol?: string | null;
+  color?: string | null;
   baseCurrency: string;
   riskProfile: "conservative" | "balanced" | "aggressive" | null;
   createdAt: string;
@@ -86,7 +91,17 @@ export default function ProjectDetailPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showPositionModal, setShowPositionModal] = useState(false);
+  const [editingPositionId, setEditingPositionId] = useState<string | null>(null);
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [showDeleteProject, setShowDeleteProject] = useState(false);
+  const [showDeletePosition, setShowDeletePosition] = useState(false);
+  const [deletePositionTarget, setDeletePositionTarget] = useState<Position | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editBaseCurrency, setEditBaseCurrency] = useState("");
+  const [editUnderlyingSymbol, setEditUnderlyingSymbol] = useState("");
+  const [editColor, setEditColor] = useState("#2563eb");
 
   const [isin, setIsin] = useState("");
   const [name, setName] = useState("");
@@ -161,8 +176,24 @@ export default function ProjectDetailPage() {
       setError(message);
     }
   }
+  function resetPositionForm() {
+    setIsin("");
+    setName("");
+    setSide("call");
+    setSize(1);
+    setEntryPrice("");
+    setMarketPrice("");
+    setUnderlyingSymbol("");
+    setUnderlyingPrice("");
+    setStrike("");
+    setExpiry("");
+    setVolatilityPct("");
+    setRatePct(3);
+    setDividendYieldPct(0);
+    setRatio(1);
+  }
 
-  async function handleAddPosition() {
+  async function handleSavePosition() {
     if (!projectId || !canAdd) return;
     setLoading(true);
     setError(null);
@@ -187,11 +218,17 @@ export default function ProjectDetailPage() {
         ratio: ratio === "" ? undefined : Number(ratio),
       };
 
-      const response = await fetch(`/api/projects/${projectId}/positions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const response = editingPositionId
+        ? await fetch(`/api/projects/${projectId}/positions/${editingPositionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch(`/api/projects/${projectId}/positions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
 
       const result = (await response.json().catch(() => null)) as
         | { error?: string }
@@ -206,20 +243,9 @@ export default function ProjectDetailPage() {
         throw new Error(errorMessage);
       }
 
-      setIsin("");
-      setName("");
-      setSide("call");
-      setSize(1);
-      setEntryPrice("");
-      setMarketPrice("");
-      setUnderlyingSymbol("");
-      setUnderlyingPrice("");
-      setStrike("");
-      setExpiry("");
-      setVolatilityPct("");
-      setRatePct(3);
-      setDividendYieldPct(0);
-      setRatio(1);
+      resetPositionForm();
+      setEditingPositionId(null);
+      setShowPositionModal(false);
       await loadProject();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to add position";
@@ -229,15 +255,18 @@ export default function ProjectDetailPage() {
     }
   }
 
-  async function handleDeletePosition(positionId: string) {
-    if (!projectId) return;
+  async function handleDeletePosition() {
+    if (!projectId || !deletePositionTarget) return;
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/positions/${positionId}`, {
+      const response = await fetch(
+        `/api/projects/${projectId}/positions/${deletePositionTarget.id}`,
+        {
         method: "DELETE",
-      });
+        }
+      );
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
 
       if (!response.ok) {
@@ -252,6 +281,8 @@ export default function ProjectDetailPage() {
       setError(message);
     } finally {
       setLoading(false);
+      setShowDeletePosition(false);
+      setDeletePositionTarget(null);
     }
   }
 
@@ -286,57 +317,526 @@ export default function ProjectDetailPage() {
     void loadProject();
   }, [projectId]);
 
+  useEffect(() => {
+    if (!project) return;
+    setEditName(project.name);
+    setEditDescription(project.description ?? "");
+    setEditBaseCurrency(project.baseCurrency ?? "EUR");
+    setEditUnderlyingSymbol(project.underlyingSymbol ?? "");
+    setEditColor(project.color ?? "#2563eb");
+  }, [project]);
+
+  function openAddPosition() {
+    resetPositionForm();
+    setEditingPositionId(null);
+    setShowPositionModal(true);
+  }
+
+  function openEditPosition(position: Position) {
+    setEditingPositionId(position.id);
+    setIsin(position.isin);
+    setName(position.name ?? "");
+    setSide(position.side);
+    setSize(position.size);
+    setEntryPrice(position.entryPrice);
+    setPricingMode(position.pricingMode ?? "market");
+    setMarketPrice(position.marketPrice ?? "");
+    setUnderlyingSymbol(position.underlyingSymbol ?? "");
+    setUnderlyingPrice(position.underlyingPrice ?? "");
+    setStrike(position.strike ?? "");
+    setExpiry(position.expiry ?? "");
+    setVolatilityPct(position.volatility ? position.volatility * 100 : "");
+    setRatePct(position.rate ? position.rate * 100 : 3);
+    setDividendYieldPct(position.dividendYield ? position.dividendYield * 100 : 0);
+    setRatio(position.ratio ?? 1);
+    setShowPositionModal(true);
+  }
+
+  function openDeletePosition(position: Position) {
+    setDeletePositionTarget(position);
+    setShowDeletePosition(true);
+  }
+
+  async function handleUpdateProject() {
+    if (!projectId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          baseCurrency: editBaseCurrency.trim(),
+          description: editDescription.trim() || undefined,
+          underlyingSymbol: editUnderlyingSymbol.trim(),
+          color: editColor.trim() || undefined,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | { project?: Project }
+        | null;
+
+      if (!response.ok) {
+        const errorMessage =
+          payload && "error" in payload ? payload.error ?? "Unable to update project" : "Unable to update project";
+        throw new Error(errorMessage);
+      }
+
+      setShowEditProject(false);
+      await loadProject();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update project";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteProject() {
+    if (!projectId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Unable to delete project");
+      }
+      window.location.href = "/projects";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to delete project";
+      setError(message);
+    } finally {
+      setLoading(false);
+      setShowDeleteProject(false);
+    }
+  }
+
+  function projectColor(projectIdValue: string) {
+    if (project?.color) {
+      return { style: { backgroundColor: project.color }, textClass: "text-white", className: "" };
+    }
+    const palette = [
+      { bg: "bg-blue-100", text: "text-blue-600" },
+      { bg: "bg-emerald-100", text: "text-emerald-600" },
+      { bg: "bg-amber-100", text: "text-amber-600" },
+      { bg: "bg-rose-100", text: "text-rose-600" },
+      { bg: "bg-indigo-100", text: "text-indigo-600" },
+      { bg: "bg-teal-100", text: "text-teal-600" },
+    ];
+    const index = Math.abs(
+      projectIdValue.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0)
+    );
+    const picked = palette[index % palette.length];
+    return { className: `${picked.bg} ${picked.text}`, textClass: "", style: undefined };
+  }
+
+  function getRiskBadge(profile: Project["riskProfile"]) {
+    if (!profile) return { label: "Custom", classes: "bg-yellow-100 text-yellow-600 border-yellow-200" };
+    if (profile === "conservative") return { label: "Conservative", classes: "bg-emerald-100 text-emerald-600 border-emerald-200" };
+    if (profile === "balanced") return { label: "Balanced", classes: "bg-yellow-100 text-yellow-600 border-yellow-200" };
+    return { label: "Aggressive", classes: "bg-red-100 text-red-600 border-red-200" };
+  }
+
+  function timeToExpiry(expiryValue?: string) {
+    if (!expiryValue) return "—";
+    const diff = Date.parse(expiryValue) - Date.now();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    if (!Number.isFinite(days)) return "—";
+    return days <= 0 ? "Expired" : `${days}d`;
+  }
+
+  function tradingViewSrc(symbol?: string | null) {
+    if (!symbol) return "";
+    const encoded = encodeURIComponent(symbol);
+    return `https://s.tradingview.com/widgetembed/?symbol=${encoded}&interval=D&style=1&locale=en&hide_top_toolbar=1&hide_side_toolbar=1&allow_symbol_change=1&withdateranges=1&hideideas=1&theme=light`;
+  }
+
   if (!project) {
     return (
-      <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
-        <div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-          {error ? error : "Loading project..."}
+      <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+        <div className="w-full max-w-xl">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-800 border-t-transparent" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-800">Project loading</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              {error ? error : "Fetching project details and positions."}
+            </p>
+          </div>
         </div>
       </div>
     );
   }
-
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">{project.name}</h2>
-        <div className="text-sm text-slate-500 mt-1">
-          Base {project.baseCurrency}
-          {project.riskProfile ? ` · ${project.riskProfile}` : ""}
+    <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div
+                className={`h-12 w-12 rounded-xl flex items-center justify-center ${projectColor(project.id).className} ${projectColor(project.id).textClass}`}
+                style={projectColor(project.id).style}
+              >
+                <span className="material-symbols-outlined text-xl">folder</span>
+              </div>
+              <div>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                  {project.name}
+                </h2>
+                {project.description ? (
+                  <p className="text-sm text-slate-500 mt-1">{project.description}</p>
+                ) : (
+                  <p className="text-sm text-slate-500 mt-1">
+                    Strategy container for warrant positions and analytics.
+                  </p>
+                )}
+                {project.underlyingSymbol ? (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Underlying:{" "}
+                    <span className="font-semibold text-slate-700">
+                      {project.underlyingSymbol}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <Menu as="div" className="relative inline-flex items-center">
+              <Menu.Button className="p-2 rounded-lg border border-border-light text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+                <span className="material-symbols-outlined text-lg">more_vert</span>
+              </Menu.Button>
+              <Menu.Items
+                anchor="bottom end"
+                portal
+                className="z-50 w-52 rounded-xl border border-border-light bg-white shadow-xl ring-1 ring-black/5 overflow-hidden py-1"
+              >
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      type="button"
+                      onClick={() => setShowEditProject(true)}
+                      className={[
+                        "w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 flex items-center gap-2",
+                        active ? "bg-slate-50" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <span className="material-symbols-outlined text-base">edit</span>
+                      Edit project
+                    </button>
+                  )}
+                </Menu.Item>
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteProject(true)}
+                      className={[
+                        "w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 flex items-center gap-2",
+                        active ? "bg-rose-50" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <span className="material-symbols-outlined text-base">delete</span>
+                      Delete project
+                    </button>
+                  )}
+                </Menu.Item>
+              </Menu.Items>
+            </Menu>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Base Currency</p>
+              <p className="text-2xl font-bold mt-1">{project.baseCurrency}</p>
+            </div>
+            <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Risk Profile</p>
+              <div className="mt-2">
+                <span
+                  className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${getRiskBadge(project.riskProfile).classes}`}
+                >
+                  {getRiskBadge(project.riskProfile).label}
+                </span>
+              </div>
+            </div>
+            <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Put/Call Ratio</p>
+              <p className="text-2xl font-bold mt-1">
+                {ratioSummary.ratio === null ? "—" : ratioSummary.ratio.toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Positions</p>
+              <p className="text-2xl font-bold mt-1">{positions.length}</p>
+            </div>
+            <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Total Value</p>
+              <p className="text-2xl font-bold mt-1">
+                {valueSummary.totalMarketValue.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-wider">
+              Positions
+            </h3>
+            <button
+              type="button"
+              onClick={openAddPosition}
+              className="h-11 w-11 rounded-lg border border-slate-300 text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors flex items-center justify-center"
+              aria-label="Add position"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+            </button>
+          </div>
+          {positions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                <span className="material-symbols-outlined text-2xl">playlist_add</span>
+              </div>
+              <h4 className="text-base font-semibold text-slate-800">No positions yet</h4>
+              <p className="mt-2 text-sm text-slate-500">
+                Add a put or call position to start tracking this strategy.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border-light bg-white shadow-sm overflow-hidden">
+              <div className="overflow-x-auto overflow-y-visible">
+                <table className="w-full min-w-[980px] text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/70 text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
+                      <th className="px-6 py-4">Instrument</th>
+                      <th className="px-6 py-4">Side</th>
+                      <th className="px-6 py-4">Size</th>
+                      <th className="px-6 py-4">Pricing Mode</th>
+                      <th className="px-6 py-4">Value</th>
+                      <th className="px-6 py-4">Leverage</th>
+                      <th className="px-6 py-4">Time to Expiry</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-light relative z-0">
+                    {positions.map((position, index) => {
+                      const mode = position.pricingMode ?? "market";
+                      const displayValue =
+                        mode === "model"
+                          ? position.computed?.fairValue
+                          : position.marketPrice ?? position.entryPrice;
+                      const isLastRow = index === positions.length - 1;
+                      return (
+                        <tr key={position.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-slate-900">
+                                {position.name ?? position.isin}
+                              </span>
+                              <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+                                {position.isin}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-medium text-slate-700 capitalize">
+                            {position.side}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">{position.size}</td>
+                          <td className="px-6 py-4 text-sm text-slate-600 capitalize">
+                            {mode}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">
+                            {displayValue === undefined ? "—" : displayValue.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">
+                            {position.ratio ?? 1}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {timeToExpiry(position.expiry)}
+                          </td>
+                          <td className="px-6 py-4 text-right relative overflow-visible">
+                            <Menu as="div" className="relative inline-flex items-center">
+                              <Menu.Button
+                                onClick={(event) => event.stopPropagation()}
+                                className="p-1.5 hover:bg-slate-100 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                              >
+                                <span className="material-symbols-outlined text-lg text-slate-500">
+                                  more_vert
+                                </span>
+                              </Menu.Button>
+                              <Menu.Items
+                                anchor={isLastRow ? "top end" : "bottom end"}
+                                portal
+                                className="z-50 w-52 rounded-xl border border-border-light bg-white shadow-xl ring-1 ring-black/5 overflow-hidden py-1"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <Menu.Item>
+                                  {({ active }) => (
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditPosition(position)}
+                                      className={[
+                                        "w-full px-3 py-2 text-left text-xs font-semibold text-slate-600 flex items-center gap-2",
+                                        active ? "bg-slate-50" : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" ")}
+                                    >
+                                      <span className="material-symbols-outlined text-base">edit</span>
+                                      Edit position
+                                    </button>
+                                  )}
+                                </Menu.Item>
+                                {mode === "model" ? (
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRecompute(position.id)}
+                                        className={[
+                                          "w-full px-3 py-2 text-left text-xs font-semibold text-slate-600 flex items-center gap-2",
+                                          active ? "bg-slate-50" : "",
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" ")}
+                                        disabled={loading}
+                                      >
+                                        <span className="material-symbols-outlined text-base">
+                                          sync
+                                        </span>
+                                        Recompute model
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                ) : null}
+                                <Menu.Item>
+                                  {({ active }) => (
+                                    <button
+                                      type="button"
+                                      onClick={() => openDeletePosition(position)}
+                                      className={[
+                                        "w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 flex items-center gap-2",
+                                        active ? "bg-rose-50" : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" ")}
+                                      disabled={loading}
+                                    >
+                                      <span className="material-symbols-outlined text-base">delete</span>
+                                      Delete position
+                                    </button>
+                                  )}
+                                </Menu.Item>
+                              </Menu.Items>
+                            </Menu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <h3 className="text-lg font-bold text-slate-900 uppercase tracking-wider">
+              Underlying Chart
+            </h3>
+            {project.underlyingSymbol ? (
+              <span className="text-xs font-semibold text-slate-500">
+                {project.underlyingSymbol}
+              </span>
+            ) : null}
+          </div>
+          {project.underlyingSymbol ? (
+            <div className="rounded-2xl border border-border-light bg-white shadow-sm overflow-hidden">
+              <iframe
+                title="TradingView chart"
+                src={tradingViewSrc(project.underlyingSymbol)}
+                className="w-full h-[420px]"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              />
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+              Add an underlying asset (e.g. NASDAQ:COIN) to see the TradingView chart.
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1.4fr] gap-6">
-        <div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
-            Add Position
-          </h3>
-          <div className="grid gap-4">
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
+          showPositionModal ? "" : "hidden"
+        }`}
+        onClick={() => setShowPositionModal(false)}
+      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showPositionModal ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setShowPositionModal(false)}
+        aria-hidden={!showPositionModal}
+      >
+        <div
+          className={`w-full max-w-2xl bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            showPositionModal ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-center justify-between">
             <div>
-              <label className="text-xs font-bold uppercase text-slate-500">Name</label>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                placeholder="Optional"
-              />
+              <h3 className="text-lg font-bold text-slate-900">
+                {editingPositionId ? "Edit Position" : "Add Position"}
+              </h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage warrants and pricing inputs for this project.
+              </p>
             </div>
-            <div>
-              <label className="text-xs font-bold uppercase text-slate-500">ISIN</label>
-              <input
-                value={isin}
-                onChange={(event) => setIsin(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm font-mono"
-                placeholder="DE000..."
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setShowPositionModal(false)}
+              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Name</label>
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">ISIN</label>
+                <input
+                  value={isin}
+                  onChange={(event) => setIsin(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm font-mono bg-slate-50"
+                  placeholder="DE000..."
+                />
+              </div>
               <div>
                 <label className="text-xs font-bold uppercase text-slate-500">Side</label>
                 <select
                   value={side}
                   onChange={(event) => setSide(event.target.value as Position["side"])}
-                  className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm bg-white"
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                 >
                   <option value="call">Call</option>
                   <option value="put">Put</option>
@@ -350,45 +850,35 @@ export default function ProjectDetailPage() {
                   step={1}
                   value={size}
                   onChange={(event) => setSize(Number(event.target.value))}
-                  className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                 />
               </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase text-slate-500">Entry price</label>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={entryPrice}
-                onChange={(event) =>
-                  setEntryPrice(event.target.value === "" ? "" : Number(event.target.value))
-                }
-                className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold uppercase text-slate-500">Pricing</label>
-              <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-border-light bg-slate-50 p-1">
-                {(["market", "model"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setPricingMode(mode)}
-                    className={`rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-                      pricingMode === mode
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Entry price</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={entryPrice}
+                  onChange={(event) =>
+                    setEntryPrice(event.target.value === "" ? "" : Number(event.target.value))
+                  }
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                />
               </div>
-              <p className="mt-2 text-xs text-slate-500">
-                Model pricing values are approximations based on Black–Scholes inputs.
-              </p>
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Pricing mode</label>
+                <select
+                  value={pricingMode}
+                  onChange={(event) =>
+                    setPricingMode(event.target.value as "market" | "model")
+                  }
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                >
+                  <option value="market">Market</option>
+                  <option value="model">Model</option>
+                </select>
+              </div>
             </div>
 
             {pricingMode === "market" ? (
@@ -402,320 +892,344 @@ export default function ProjectDetailPage() {
                   onChange={(event) =>
                     setMarketPrice(event.target.value === "" ? "" : Number(event.target.value))
                   }
-                  className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                 />
               </div>
             ) : (
-              <div className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-500">Underlying symbol</label>
                   <input
                     value={underlyingSymbol}
                     onChange={(event) => setUnderlyingSymbol(event.target.value)}
-                    className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                     placeholder="Optional"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Underlying price</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={underlyingPrice}
-                      onChange={(event) =>
-                        setUnderlyingPrice(event.target.value === "" ? "" : Number(event.target.value))
-                      }
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Strike</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={strike}
-                      onChange={(event) => setStrike(event.target.value === "" ? "" : Number(event.target.value))}
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Underlying price</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={underlyingPrice}
+                    onChange={(event) =>
+                      setUnderlyingPrice(event.target.value === "" ? "" : Number(event.target.value))
+                    }
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Expiry</label>
-                    <input
-                      type="date"
-                      value={expiry}
-                      onChange={(event) => setExpiry(event.target.value)}
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Ratio</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={ratio}
-                      onChange={(event) => setRatio(event.target.value === "" ? "" : Number(event.target.value))}
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Strike</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={strike}
+                    onChange={(event) => setStrike(event.target.value === "" ? "" : Number(event.target.value))}
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Volatility %</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={volatilityPct}
-                      onChange={(event) =>
-                        setVolatilityPct(event.target.value === "" ? "" : Number(event.target.value))
-                      }
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                      placeholder="25"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Rate %</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={ratePct}
-                      onChange={(event) => setRatePct(event.target.value === "" ? "" : Number(event.target.value))}
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Dividend %</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={dividendYieldPct}
-                      onChange={(event) =>
-                        setDividendYieldPct(event.target.value === "" ? "" : Number(event.target.value))
-                      }
-                      className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Expiry</label>
+                  <input
+                    type="date"
+                    value={expiry}
+                    onChange={(event) => setExpiry(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Ratio</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={ratio}
+                    onChange={(event) => setRatio(event.target.value === "" ? "" : Number(event.target.value))}
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Volatility %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={volatilityPct}
+                    onChange={(event) =>
+                      setVolatilityPct(event.target.value === "" ? "" : Number(event.target.value))
+                    }
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                    placeholder="25"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Rate %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={ratePct}
+                    onChange={(event) => setRatePct(event.target.value === "" ? "" : Number(event.target.value))}
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-500">Dividend %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={dividendYieldPct}
+                    onChange={(event) =>
+                      setDividendYieldPct(event.target.value === "" ? "" : Number(event.target.value))
+                    }
+                    className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  />
                 </div>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleAddPosition}
-              disabled={!canAdd || loading}
-              className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold disabled:opacity-60"
-            >
-              {loading ? "Saving..." : "Add position"}
-            </button>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
           </div>
-        </div>
-
-        <div className="grid gap-6">
-          <div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
-              Put/Call Summary
-            </h3>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div className="rounded-xl border border-border-light bg-slate-50 p-4">
-                <div className="text-xs uppercase text-slate-500">Total puts</div>
-                <div className="text-lg font-bold text-slate-900 mt-1">
-                  {ratioSummary.totalPuts}
-                </div>
-              </div>
-              <div className="rounded-xl border border-border-light bg-slate-50 p-4">
-                <div className="text-xs uppercase text-slate-500">Total calls</div>
-                <div className="text-lg font-bold text-slate-900 mt-1">
-                  {ratioSummary.totalCalls}
-                </div>
-              </div>
-              <div className="rounded-xl border border-border-light bg-slate-50 p-4">
-                <div className="text-xs uppercase text-slate-500">Ratio</div>
-                <div className="text-lg font-bold text-slate-900 mt-1">
-                  {ratioSummary.ratio === null ? "—" : ratioSummary.ratio.toFixed(2)}
-                </div>
-                {ratioSummary.ratio === null ? (
-                  <div className="text-[11px] text-slate-400 mt-1">
-                    Add a call position to compute.
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
-              Value Summary
-            </h3>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div className="rounded-xl border border-border-light bg-slate-50 p-4">
-                <div className="text-xs uppercase text-slate-500">Total market value</div>
-                <div className="text-lg font-bold text-slate-900 mt-1">
-                  {valueSummary.totalMarketValue.toFixed(2)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-border-light bg-slate-50 p-4">
-                <div className="text-xs uppercase text-slate-500">Total intrinsic</div>
-                <div className="text-lg font-bold text-slate-900 mt-1">
-                  {valueSummary.totalIntrinsicValue.toFixed(2)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-border-light bg-slate-50 p-4">
-                <div className="text-xs uppercase text-slate-500">Total time value</div>
-                <div className="text-lg font-bold text-slate-900 mt-1">
-                  {valueSummary.totalTimeValue.toFixed(2)}
-                </div>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Market totals use manual market prices or model fair values multiplied by size and ratio.
-            </p>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowPositionModal(false)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={handleSavePosition}
+              disabled={!canAdd || loading}
+              className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+            >
+              {loading ? "Saving..." : editingPositionId ? "Update Position" : "Add Position"}
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-            Positions
-          </h3>
-          <p className="text-xs text-slate-500">Model values are approximate.</p>
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
+          showEditProject ? "" : "hidden"
+        }`}
+        onClick={() => setShowEditProject(false)}
+      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showEditProject ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setShowEditProject(false)}
+        aria-hidden={!showEditProject}
+      >
+        <div
+          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            showEditProject ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Edit Project</h3>
+              <p className="text-sm text-slate-500 mt-1">Update project metadata.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowEditProject(false)}
+              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Project name</label>
+              <input
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Base currency</label>
+              <input
+                value={editBaseCurrency}
+                onChange={(event) => setEditBaseCurrency(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Underlying asset</label>
+              <input
+                value={editUnderlyingSymbol}
+                onChange={(event) => setEditUnderlyingSymbol(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                placeholder="NASDAQ:COIN"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Project color</label>
+              <div className="mt-2 flex items-center gap-3">
+                <input
+                  type="color"
+                  value={editColor}
+                  onChange={(event) => setEditColor(event.target.value)}
+                  className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
+                />
+                <input
+                  value={editColor}
+                  onChange={(event) => setEditColor(event.target.value)}
+                  className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
+                  placeholder="#2563eb"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Description</label>
+              <textarea
+                value={editDescription}
+                onChange={(event) => setEditDescription(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                rows={4}
+              />
+            </div>
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          </div>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowEditProject(false)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleUpdateProject}
+              className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
+            >
+              Save changes
+            </button>
+          </div>
         </div>
-        {positions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-            No positions yet. Add a put or call to start tracking.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-border-light">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">ISIN</th>
-                  <th className="px-4 py-3 text-left font-semibold">Side</th>
-                  <th className="px-4 py-3 text-left font-semibold">Pricing</th>
-                  <th className="px-4 py-3 text-right font-semibold">Size</th>
-                  <th className="px-4 py-3 text-right font-semibold">Value</th>
-                  <th className="px-4 py-3 text-right font-semibold">Entry</th>
-                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-light">
-                {positions.map((position) => {
-                  const mode = position.pricingMode ?? "market";
-                  const ratioValue = position.ratio ?? 1;
-                  const displayValue =
-                    mode === "model"
-                      ? position.computed?.fairValue
-                      : position.marketPrice ?? position.entryPrice;
-                  const secondaryValue =
-                    mode === "model" && position.computed
-                      ? `Intrinsic ${position.computed.intrinsicValue.toFixed(2)} · Time ${position.computed.timeValue.toFixed(2)}`
-                      : position.marketPrice === undefined
-                        ? "Using entry price"
-                        : "";
+      </div>
 
-                  return (
-                    <Fragment key={position.id}>
-                      <tr className="bg-white">
-                        <td className="px-4 py-3 font-mono text-slate-700">{position.isin}</td>
-                        <td className="px-4 py-3 text-slate-600 capitalize">{position.side}</td>
-                        <td className="px-4 py-3 text-slate-600 capitalize">{mode}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{position.size}</td>
-                        <td className="px-4 py-3 text-right text-slate-700">
-                          {displayValue === undefined ? "—" : displayValue.toFixed(2)}
-                          {secondaryValue ? (
-                            <div className="text-[11px] text-slate-400 mt-1">{secondaryValue}</div>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {position.entryPrice.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {mode === "model" ? (
-                              <button
-                                type="button"
-                                onClick={() => handleRecompute(position.id)}
-                                className="text-xs font-semibold text-slate-600 hover:text-slate-900"
-                                disabled={loading}
-                              >
-                                Recompute
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedId(expandedId === position.id ? null : position.id)
-                              }
-                              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
-                            >
-                              {expandedId === position.id ? "Hide" : "Details"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePosition(position.id)}
-                              className="text-xs font-semibold text-red-600 hover:text-red-700"
-                              disabled={loading}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedId === position.id ? (
-                        <tr className="bg-slate-50">
-                          <td colSpan={7} className="px-4 py-4 text-xs text-slate-600">
-                            <div className="grid gap-3 md:grid-cols-3">
-                              <div>
-                                <div className="font-semibold text-slate-700">Model inputs</div>
-                                <div className="mt-2 space-y-1">
-                                  <div>Underlying: {position.underlyingSymbol || "—"}</div>
-                                  <div>Underlying price: {position.underlyingPrice ?? "—"}</div>
-                                  <div>Strike: {position.strike ?? "—"}</div>
-                                  <div>Expiry: {position.expiry ?? "—"}</div>
-                                  <div>Volatility: {position.volatility ?? "—"}</div>
-                                  <div>Rate: {position.rate ?? "—"}</div>
-                                  <div>Dividend yield: {position.dividendYield ?? "—"}</div>
-                                  <div>Ratio: {ratioValue}</div>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="font-semibold text-slate-700">Greeks</div>
-                                <div className="mt-2 space-y-1">
-                                  <div>Delta: {position.computed?.delta ?? "—"}</div>
-                                  <div>Gamma: {position.computed?.gamma ?? "—"}</div>
-                                  <div>Theta: {position.computed?.theta ?? "—"}</div>
-                                  <div>Vega: {position.computed?.vega ?? "—"}</div>
-                                  <div>As of: {position.computed?.asOf ?? "—"}</div>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="font-semibold text-slate-700">Time value curve</div>
-                                <div className="mt-2 rounded-lg border border-border-light bg-white p-3 font-mono text-[11px] text-slate-500 max-h-40 overflow-auto">
-                                  {position.timeValueCurve
-                                    ? JSON.stringify(position.timeValueCurve, null, 2)
-                                    : "No curve generated."}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
+          showDeleteProject ? "" : "hidden"
+        }`}
+        onClick={() => setShowDeleteProject(false)}
+      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showDeleteProject ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setShowDeleteProject(false)}
+        aria-hidden={!showDeleteProject}
+      >
+        <div
+          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            showDeleteProject ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">warning</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Projekt löschen</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Diese Aktion kann nicht rückgängig gemacht werden.
+              </p>
+            </div>
           </div>
-        )}
+          <div className="p-6">
+            <p className="text-sm text-slate-600">
+              Möchten Sie das Projekt{" "}
+              <span className="font-semibold text-slate-900">{project.name}</span> wirklich
+              löschen? Alle Positionen werden entfernt.
+            </p>
+          </div>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowDeleteProject(false)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteProject}
+              className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
+            >
+              Projekt löschen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
+          showDeletePosition ? "" : "hidden"
+        }`}
+        onClick={() => setShowDeletePosition(false)}
+      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showDeletePosition ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setShowDeletePosition(false)}
+        aria-hidden={!showDeletePosition}
+      >
+        <div
+          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            showDeletePosition ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">warning</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Position löschen</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Diese Aktion kann nicht rückgängig gemacht werden.
+              </p>
+            </div>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-slate-600">
+              Möchten Sie die Position
+              <span className="font-semibold text-slate-900">
+                {deletePositionTarget ? ` ${deletePositionTarget.name ?? deletePositionTarget.isin}` : ""}
+              </span>
+              wirklich löschen?
+            </p>
+          </div>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowDeletePosition(false)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={handleDeletePosition}
+              className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
+              disabled={loading}
+            >
+              Position löschen
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
