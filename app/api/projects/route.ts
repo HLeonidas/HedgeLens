@@ -61,7 +61,7 @@ export async function GET() {
     return NextResponse.json({ projects: [] });
   }
 
-  const projects = await redis.mget<StoredProject>(
+  const projects = await redis.mget<StoredProject[]>(
     projectIds.map((id) => `project:${id}`)
   );
 
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       side?: "put" | "call";
     };
     instrument?: {
-      isin?: string;
+      isin: string;
       name?: string;
       issuer?: string;
       type?: "put" | "call";
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     };
   } | null;
 
-  if (!body?.instrument?.isin || !body.name) {
+  if (!body?.instrument || !body.instrument.isin || !body.name) {
     return NextResponse.json({ error: "Missing project name or instrument" }, { status: 400 });
   }
 
