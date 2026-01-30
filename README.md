@@ -38,6 +38,36 @@ Replace/extend the provider list when you add more identity providers.
 - Framework: Next.js (auto-detected)
 - API routes are part of the same deployment under `/api/*`
 
+## Neon (Vercel Storage) Setup
+If you created a Neon database via Vercel, use the steps below to connect it to this app.
+
+1. **Create or connect a Neon project**
+   - In the Vercel Dashboard, open your project and go to **Storage**.
+   - Create/select Neon and click **Open in Neon Console**.
+
+2. **Pull env vars locally**
+   - Run:
+     ```
+     vercel env pull .env.development.local
+     ```
+   - This populates `DATABASE_URL` (and related Neon variables).
+   - This app reads `POSTGRES_URL` or `DATABASE_URL`.
+
+3. **Run the initial schema**
+   - In the Neon SQL Editor, run:
+     ```
+     -- file: db/migrations/001_init.sql
+     ```
+
+4. **Run the app**
+   - `npm run dev`
+
+Optional (only if you want to use the Neon serverless driver instead of `postgres`):
+```
+npm install @neondatabase/serverless
+```
+Then replace the DB client in `lib/db.ts` with the Neon `neon()` client.
+
 ## Next Steps (Workflow)
 1. Auth setup
    - Confirm `.env.local` values are present and valid.

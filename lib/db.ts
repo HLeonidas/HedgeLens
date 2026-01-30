@@ -1,9 +1,9 @@
 import "server-only";
 
-import postgres from "postgres";
+import { neon } from "@neondatabase/serverless";
 
 const globalForDb = globalThis as typeof globalThis & {
-  sql?: ReturnType<typeof postgres>;
+  sql?: ReturnType<typeof neon>;
 };
 
 export function getDb() {
@@ -15,13 +15,7 @@ export function getDb() {
   }
 
   if (!globalForDb.sql) {
-    globalForDb.sql = postgres(connectionString, {
-      ssl: "require",
-      max: 1,
-      idle_timeout: 5,
-      connect_timeout: 10,
-      prepare: false,
-    });
+    globalForDb.sql = neon(connectionString);
   }
 
   return globalForDb.sql;

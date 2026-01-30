@@ -17,6 +17,13 @@ export const navItems: NavItem[] = [
     exact: true,
   },
   {
+    href: "/projects",
+    label: "Projects",
+    icon: "folder",
+    title: "Projects",
+    subtitle: "ISIN lookup and tracking",
+  },
+  {
     href: "/comparison",
     label: "Comparison View",
     icon: "compare_arrows",

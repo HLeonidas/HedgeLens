@@ -7,7 +7,13 @@ This file defines the minimal storage schema and cache keys to align with the fr
 ### users
 - id (text, pk)
 - email (text, unique, not null)
+- name (text, nullable)
+- image (text, nullable)
+- provider (text, nullable)
+- provider_account_id (text, nullable)
+- active (boolean, not null)
 - created_at (timestamptz, not null)
+- updated_at (timestamptz, not null)
 - risk_profile (text, nullable)
 - preferences (jsonb, nullable)
 
@@ -116,4 +122,3 @@ Indexes:
 - isin:lookup:{isin} -> Instrument payload (short TTL, e.g. 6h)
 - price:isin:{isin} -> { isin, name, price, currency, asOf } (short TTL, e.g. 15m)
 - price:crypto:{symbol} -> { symbol, name, price, currency, asOf } (short TTL, e.g. 15m)
-

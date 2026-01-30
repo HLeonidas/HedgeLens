@@ -9,11 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.0",
     "@fontsource/material-symbols-outlined": "^5.2.33",
     "highcharts": "^12.5.0",
     "next": "latest",
     "next-auth": "^5.0.0-beta.30",
-    "postgres": "^3.4.5",
     "react": "latest",
     "react-dom": "latest"
   },
