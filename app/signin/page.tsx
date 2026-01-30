@@ -19,11 +19,13 @@ export default function SignInPage() {
   return (
     <main className="min-h-screen bg-background-light px-6 py-12">
       <div className="mx-auto w-full max-w-md rounded-3xl bg-white p-8 shadow-xl border border-border-light">
-        <Link href="/" className="text-xs uppercase tracking-[0.4em] text-ink/60">
+        <Link href="/" className="text-xs uppercase tracking-[0.4em] text-slate-400">
           HedgeLens
         </Link>
-        <h1 className="mt-4 text-2xl font-display font-semibold text-ink">Sign in</h1>
-        <p className="mt-2 text-sm text-ink/70">
+        <h1 className="mt-4 text-2xl font-display font-semibold text-slate-900">
+          Sign in
+        </h1>
+        <p className="mt-2 text-sm text-slate-500">
           Melde dich mit GitHub an. Für andere Provider passe die Auth.js
           Konfiguration an.
         </p>
@@ -31,7 +33,7 @@ export default function SignInPage() {
         <button
           type="button"
           onClick={handleGitHub}
-          className="mt-6 w-full rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white"
+          className="mt-6 w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent/90"
         >
           Continue with GitHub
         </button>

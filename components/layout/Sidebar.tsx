@@ -1,3 +1,6 @@
+import type { Route } from "next";
+import Link from "next/link";
+
 import { navItems } from "./nav";
 import { SidebarItem } from "./SidebarItem";
 
@@ -23,7 +26,7 @@ function getInitials(name?: string | null, email?: string | null) {
 export function Sidebar({ onNavClick, user }: SidebarProps) {
   return (
     <aside className="w-full border-b lg:border-b-0 lg:border-r border-border-light flex flex-col bg-surface-grey z-20 shrink-0 lg:w-64 lg:h-screen min-h-0">
-      <div className="p-4 sm:p-6 border-b border-border-light">
+      <div className="px-4 sm:px-6 lg:px-8 py-4 border-b border-border-light h-[75px] flex items-center">
         <div className="flex items-center gap-3 text-accent">
           <div className="size-9 bg-accent/10 rounded-lg flex items-center justify-center">
             <span className="material-symbols-outlined text-xl text-accent">analytics</span>
@@ -48,13 +51,13 @@ export function Sidebar({ onNavClick, user }: SidebarProps) {
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-l-4 border-l-curve-a border-border-light shadow-sm">
             <span className="text-xs font-mono text-slate-700">US88160R1014</span>
-            <span className="material-symbols-outlined text-sm text-curve-a">
+            <span className="material-symbols-outlined text-xs text-curve-a">
               check_circle
             </span>
           </div>
           <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-l-4 border-l-curve-b border-border-light shadow-sm mt-1">
             <span className="text-xs font-mono text-slate-700">US0378331005</span>
-            <span className="material-symbols-outlined text-sm text-curve-b">
+            <span className="material-symbols-outlined text-xs text-curve-b">
               check_circle
             </span>
           </div>
@@ -81,10 +84,13 @@ export function Sidebar({ onNavClick, user }: SidebarProps) {
             <span className="text-xs text-slate-500">GitHub</span>
           </div>
         </div>
-        <button className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-white border border-border-light text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <Link
+          href={"/settings" as Route}
+          className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-white border border-border-light text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
           <span className="material-symbols-outlined text-sm">settings</span>
           Settings
-        </button>
+        </Link>
       </div>
     </aside>
   );
