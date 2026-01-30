@@ -1,0 +1,28 @@
+<header class="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-5">
+  <div class="flex items-center gap-6">
+    <div>
+      <h1 class="text-xl font-semibold text-slate-900">Time-Value Analysis</h1>
+      <p class="text-xs text-slate-500">Market closes in 2h 45m</p>
+    </div>
+    <div class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500 lg:flex">
+      <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+      Live pricing enabled
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <div class="relative hidden items-center lg:flex">
+      <ng-icon name="tablerSearch" size="18" class="absolute left-3 text-slate-400"></ng-icon>
+      <input
+        class="w-72 rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-700 shadow-sm"
+        placeholder="Search ISIN, ticker..."
+      />
+    </div>
+    <button class="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500">
+      <ng-icon name="tablerBell" size="18"></ng-icon>
+    </button>
+    <button class="grid h-9 w-9 place-items-center rounded-xl bg-slate-900 text-white">
+      <ng-icon name="tablerUserCircle" size="18"></ng-icon>
+    </button>
+  </div>
+</header>
