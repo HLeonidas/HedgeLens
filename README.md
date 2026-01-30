@@ -20,8 +20,7 @@
 - Hosting/Backend: Vercel
   - Frontend hosting (Angular build)
   - Vercel Serverless Functions (`/api`) for ISIN proxy, simulation, optimization
-- Data/Auth: Vercel
-  - Auth handled by the Vercel stack
+- Data: Vercel
   - Data stored in Vercel Storage (e.g., Postgres/KV depending on setup)
 
 ---
@@ -31,7 +30,6 @@
 - Use: Import `Highcharts` in a component and configure chart options there.
 
 ### 3) Architecture Overview
-- Angular (Vercel) <-> Vercel Auth (Login)
 - Angular (Vercel) <-> Vercel Storage (Users, Projects, Results)
 - Angular (Vercel) <-> Vercel Functions (`/api`) (ISIN lookup, simulation, optimization)
 
@@ -236,7 +234,6 @@
 ---
 
 ### 7) Security
-- Vercel Functions: Auth guard (uid required)
 - ISIN provider API keys only as Vercel environment variables
 
 ---
@@ -265,10 +262,8 @@
 - KV: fast access for latest prices and cached ISIN lookups.
 - Blob: optional for exports, reports, or uploaded assets.
 
-### Auth Provider Note (Auth.js)
-- Use Auth.js hosted on Vercel for sign-in (OAuth/email/password as needed).
-- Auth.js issues a session (cookie/JWT). Vercel Functions validate the session and derive a stable `uid`.
-- Enforce auth on every `/api/*` request and scope all storage access by `uid`.
+### Required Environment Variables
+- `POSTGRES_URL` (or the Vercel Postgres connection vars)
 
 ### Deploy Steps
 1) Install Vercel CLI: `npm i -g vercel`
