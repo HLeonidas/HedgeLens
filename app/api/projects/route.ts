@@ -46,7 +46,7 @@ export async function GET() {
   }
 
   const sql = getDb();
-  const rows = await sql<ProjectRow[]>`
+  const rows = (await sql`
     select
       p.id as project_id,
       p.name as project_name,
@@ -72,7 +72,7 @@ export async function GET() {
     left join instruments i on i.isin = pos.isin
     where p.owner_uid = ${gate.user.id}
     order by p.created_at desc
-  `;
+  `) as ProjectRow[];
 
   const projects = new Map<
     string,

@@ -38,7 +38,7 @@ export async function upsertUserFromOAuth(input: {
   const now = new Date();
   const id = randomUUID();
 
-  const [user] = await sql<DbUser[]>`
+  const [user] = (await sql`
     insert into users (
       id,
       email,
@@ -77,7 +77,7 @@ export async function upsertUserFromOAuth(input: {
       active,
       created_at,
       updated_at
-  `;
+  `) as DbUser[];
 
   return user;
 }
@@ -95,7 +95,7 @@ export async function requireActiveUser(): Promise<RequireActiveUserResult> {
   }
 
   const sql = getDb();
-  let [user] = await sql<DbUser[]>`
+  let [user] = (await sql`
       select
         id,
         email,
@@ -108,10 +108,10 @@ export async function requireActiveUser(): Promise<RequireActiveUserResult> {
         updated_at
       from users
       where id = ${userId ?? ""}
-    `;
+    `) as DbUser[];
 
   if (!user && email) {
-    [user] = await sql<DbUser[]>`
+    [user] = (await sql`
       select
         id,
         email,
@@ -124,7 +124,7 @@ export async function requireActiveUser(): Promise<RequireActiveUserResult> {
         updated_at
       from users
       where email = ${email}
-    `;
+    `) as DbUser[];
   }
 
   if (!user) {
