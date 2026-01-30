@@ -2,7 +2,7 @@
 
 ## Tech Stack (Current)
 - Next.js (App Router)
-- Auth.js (next-auth) with cookie-based JWT session
+- Auth.js (NextAuth v5) with cookie-based JWT session
 - Postgres (Neon/Vercel Postgres)
 - Tailwind CSS
 
@@ -29,7 +29,7 @@ Optional:
 - `lib/` – server-only helpers (DB, analytics)
 
 ## Auth
-Auth is implemented via Auth.js (NextAuth v5) with GitHub OAuth.
+Auth is implemented via Auth.js with GitHub OAuth.
 Replace/extend the provider list when you add more identity providers.
 
 ## Deployment (Vercel)
@@ -38,8 +38,23 @@ Replace/extend the provider list when you add more identity providers.
 - Framework: Next.js (auto-detected)
 - API routes are part of the same deployment under `/api/*`
 
+## Next Steps (Workflow)
+1. Auth setup
+   - Confirm `.env.local` values are present and valid.
+   - Verify GitHub OAuth callback URL points to `http://localhost:3000/api/auth/callback/github` in dev.
+2. Database bootstrap
+   - Run initial migration for `users` (must include `active` flag).
+   - Ensure a DB client is available in `lib/` for server-only usage.
+3. Security gating (required)
+   - Add middleware or route guards that block access when `user.active = false`.
+   - Apply the same check to API routes and page routes.
+4. Account provisioning
+   - On first login, upsert a `users` record with `active = true` by default.
+   - Store provider ID + email to avoid duplicate accounts.
 
-# HedgeLens
+## Security
+- Add a server-side guard that checks `users.active` on every page and API request. If inactive, deny access.
+- On login, create (or update) the user record in Postgres so every authenticated user has an account row.
 
 ## Technical Specification (v1/MVP)
 
@@ -55,30 +70,24 @@ Replace/extend the provider list when you add more identity providers.
 
 ---
 
-### 2) Tech Stack
-- Frontend: Angular 17+ + Tailwind CSS + Icon Pack (Tabler Icons)
-- Charts: Highcharts (direct)
+### 2) Tech Stack (Current)
+- Frontend: Next.js (App Router) + Tailwind CSS
+- Auth: Auth.js (NextAuth v5) with cookie-based JWT session
+- Data: Postgres (Neon/Vercel Postgres)
 - Hosting/Backend: Vercel
-  - Frontend hosting (Angular build)
-  - Vercel Serverless Functions (`/api`) for ISIN proxy, simulation, optimization
-- Data/Auth: Vercel
-  - Auth handled by the Vercel stack
-  - Data stored in Vercel Storage (e.g., Postgres/KV depending on setup)
+  - Next.js app + API routes under `/api/*`
+  - Serverless functions for ISIN proxy, simulation, optimization
 
 ---
-
-### Charts (Highcharts)
-- Install: `npm install highcharts`
-- Use: Import `Highcharts` in a component and configure chart options there.
 
 ### 3) Architecture Overview
-- Angular (Vercel) <-> Vercel Auth (Login)
-- Angular (Vercel) <-> Vercel Storage (Users, Projects, Results)
-- Angular (Vercel) <-> Vercel Functions (`/api`) (ISIN lookup, simulation, optimization)
+- Next.js (Vercel) <-> Auth.js (GitHub OAuth)
+- Next.js (Vercel) <-> Postgres (Users, Projects, Results)
+- Next.js (Vercel) <-> API routes (`/api`) (ISIN lookup, simulation, optimization)
 
 ---
 
-### 4) Data Model (Vercel Storage)
+### 4) Data Model (Postgres)
 
 **/users/{uid}**
 - email, createdAt, preferences
@@ -153,7 +162,7 @@ Replace/extend the provider list when you add more identity providers.
 
 ---
 
-### 5) API Contracts (Vercel Functions)
+### 5) API Contracts (API Routes)
 
 #### 5.1 ISIN Lookup
 **POST** `/api/isin/lookup`
@@ -273,27 +282,3 @@ Replace/extend the provider list when you add more identity providers.
 - Optimization: grid search over ratio combinations
 - Investments: profit = (currentPrice - buyInPrice) * shares
 - Expected: target value = expectedPrice * shares
-
----
-
-## Angular CLI
-
-This project was generated with Angular CLI version 17.3.17.
-
-### Development server
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
-
-### Code scaffolding
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
-
-### Build
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
-
-### Running unit tests
-Run `ng test` to execute the unit tests via Karma.
-
-### Running end-to-end tests
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice.
-
-### Further help
-To get more help on the Angular CLI use `ng help` or go check out the Angular CLI Overview and Command Reference page.
