@@ -1,32 +1,38 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 
-import { getDb } from "@/lib/db";
+import { getRedis } from "@/lib/redis";
 import { requireActiveUser } from "@/lib/users";
 
 export const runtime = "nodejs";
 
 type ProjectRow = {
-  project_id: string;
-  project_name: string;
-  base_currency: string;
-  created_at: string;
-  updated_at: string;
-  position_id: string | null;
-  position_isin: string | null;
-  position_side: string | null;
-  position_size: number | null;
-  position_entry_price: number | null;
-  position_date: string | null;
-  instrument_name: string | null;
-  instrument_issuer: string | null;
-  instrument_type: string | null;
-  instrument_underlying: string | null;
-  instrument_strike: number | null;
-  instrument_expiry: string | null;
-  instrument_currency: string | null;
-  instrument_price: number | null;
+  id: string;
+  name: string;
+  baseCurrency: string;
+  createdAt: string;
+  updatedAt: string;
+  positions: Array<{
+    id: string;
+    isin: string;
+    side: string;
+    size: number;
+    entryPrice: number;
+    date: string;
+    instrument?: {
+      name: string | null;
+      issuer: string | null;
+      type: string | null;
+      underlying: string | null;
+      strike: number | null;
+      expiry: string | null;
+      currency: string | null;
+      price: number | null;
+    };
+  }>;
 };
+
+type StoredProject = ProjectRow;
 
 function gateToResponse(status: "unauthenticated" | "inactive" | "missing") {
   if (status === "unauthenticated") {
@@ -45,99 +51,25 @@ export async function GET() {
     return gateToResponse(gate.status);
   }
 
-  const sql = getDb();
-  const rows = (await sql`
-    select
-      p.id as project_id,
-      p.name as project_name,
-      p.base_currency,
-      p.created_at,
-      p.updated_at,
-      pos.id as position_id,
-      pos.isin as position_isin,
-      pos.side as position_side,
-      pos.size as position_size,
-      pos.entry_price as position_entry_price,
-      pos.date as position_date,
-      i.name as instrument_name,
-      i.issuer as instrument_issuer,
-      i.type as instrument_type,
-      i.underlying as instrument_underlying,
-      i.strike as instrument_strike,
-      i.expiry as instrument_expiry,
-      i.currency as instrument_currency,
-      i.price as instrument_price
-    from projects p
-    left join positions pos on pos.project_id = p.id
-    left join instruments i on i.isin = pos.isin
-    where p.owner_uid = ${gate.user.id}
-    order by p.created_at desc
-  `) as ProjectRow[];
+  const redis = getRedis();
+  const projectKey = `user:${gate.user.id}:projects`;
+  const projectIds = (await redis.zrange<string[]>(projectKey, 0, 49, {
+    rev: true,
+  })) ?? [];
 
-  const projects = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      baseCurrency: string;
-      createdAt: string;
-      updatedAt: string;
-      positions: Array<{
-        id: string;
-        isin: string;
-        side: string;
-        size: number;
-        entryPrice: number;
-        date: string;
-        instrument?: {
-          name: string | null;
-          issuer: string | null;
-          type: string | null;
-          underlying: string | null;
-          strike: number | null;
-          expiry: string | null;
-          currency: string | null;
-          price: number | null;
-        };
-      }>;
-    }
-  >();
-
-  for (const row of rows) {
-    if (!projects.has(row.project_id)) {
-      projects.set(row.project_id, {
-        id: row.project_id,
-        name: row.project_name,
-        baseCurrency: row.base_currency,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        positions: [],
-      });
-    }
-
-    if (row.position_id && row.position_isin) {
-      projects.get(row.project_id)?.positions.push({
-        id: row.position_id,
-        isin: row.position_isin,
-        side: row.position_side ?? "call",
-        size: row.position_size ?? 0,
-        entryPrice: row.position_entry_price ?? 0,
-        date: row.position_date ?? "",
-        instrument: {
-          name: row.instrument_name,
-          issuer: row.instrument_issuer,
-          type: row.instrument_type,
-          underlying: row.instrument_underlying,
-          strike: row.instrument_strike,
-          expiry: row.instrument_expiry,
-          currency: row.instrument_currency,
-          price: row.instrument_price,
-        },
-      });
-    }
+  if (projectIds.length === 0) {
+    return NextResponse.json({ projects: [] });
   }
 
-  return NextResponse.json({ projects: Array.from(projects.values()) });
+  const projects = await redis.mget<StoredProject>(
+    projectIds.map((id) => `project:${id}`)
+  );
+
+  const filtered = (projects ?? [])
+    .filter((project): project is StoredProject => Boolean(project))
+    .map((project) => project);
+
+  return NextResponse.json({ projects: filtered });
 }
 
 export async function POST(request: Request) {
@@ -187,84 +119,42 @@ export async function POST(request: Request) {
   const size = position.size ?? 1;
   const entryPrice = position.entryPrice ?? instrument.price ?? 0;
 
-  const sql = getDb();
-
-  await sql.transaction([
-    sql`
-      insert into instruments (
-        isin,
-        name,
-        issuer,
-        type,
-        underlying,
-        strike,
-        expiry,
-        currency,
-        price,
-        fetched_at
-      )
-      values (
-        ${instrument.isin},
-        ${instrument.name ?? "Unknown"},
-        ${instrument.issuer ?? "Unknown"},
-        ${instrument.type ?? side},
-        ${instrument.underlying ?? "Unknown"},
-        ${instrument.strike ?? 0},
-        ${instrument.expiry ?? today},
-        ${instrument.currency ?? baseCurrency},
-        ${instrument.price ?? 0},
-        ${instrument.fetchedAt ? new Date(instrument.fetchedAt) : now}
-      )
-      on conflict (isin) do update set
-        name = excluded.name,
-        issuer = excluded.issuer,
-        type = excluded.type,
-        underlying = excluded.underlying,
-        strike = excluded.strike,
-        expiry = excluded.expiry,
-        currency = excluded.currency,
-        price = excluded.price,
-        fetched_at = excluded.fetched_at
-    `,
-    sql`
-      insert into projects (
-        id,
-        owner_uid,
-        name,
-        base_currency,
-        created_at,
-        updated_at
-      )
-      values (
-        ${projectId},
-        ${gate.user.id},
-        ${body.name},
-        ${baseCurrency},
-        ${now},
-        ${now}
-      )
-    `,
-    sql`
-      insert into positions (
-        id,
-        project_id,
-        isin,
+  const redis = getRedis();
+  const project: StoredProject = {
+    id: projectId,
+    name: body.name,
+    baseCurrency,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+    positions: [
+      {
+        id: positionId,
+        isin: instrument.isin,
         side,
         size,
-        entry_price,
-        date
-      )
-      values (
-        ${positionId},
-        ${projectId},
-        ${instrument.isin},
-        ${side},
-        ${size},
-        ${entryPrice},
-        ${today}
-      )
-    `,
-  ]);
+        entryPrice,
+        date: today,
+        instrument: {
+          name: instrument.name ?? "Unknown",
+          issuer: instrument.issuer ?? "Unknown",
+          type: instrument.type ?? side,
+          underlying: instrument.underlying ?? "Unknown",
+          strike: instrument.strike ?? 0,
+          expiry: instrument.expiry ?? today,
+          currency: instrument.currency ?? baseCurrency,
+          price: instrument.price ?? 0,
+        },
+      },
+    ],
+  };
+
+  const projectKey = `project:${projectId}`;
+  const userProjectsKey = `user:${gate.user.id}:projects`;
+  await redis.set(projectKey, project);
+  await redis.zadd(userProjectsKey, {
+    score: now.getTime(),
+    member: projectId,
+  });
 
   return NextResponse.json({
     ok: true,

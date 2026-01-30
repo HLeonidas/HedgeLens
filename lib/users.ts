@@ -3,7 +3,8 @@ import "server-only";
 import { randomUUID } from "crypto";
 
 import { auth } from "@/auth";
-import { getDb } from "@/lib/db";
+import { getRedis } from "@/lib/redis";
+import type { Redis } from "@upstash/redis";
 
 export type DbUser = {
   id: string;
@@ -16,6 +17,8 @@ export type DbUser = {
   created_at: string;
   updated_at: string;
 };
+
+type StoredUser = DbUser;
 
 export type RequireActiveUserResult =
   | { status: "ok"; user: DbUser }
@@ -34,50 +37,26 @@ export async function upsertUserFromOAuth(input: {
     throw new Error("Missing email from OAuth provider.");
   }
 
-  const sql = getDb();
+  const redis = getRedis();
   const now = new Date();
-  const id = randomUUID();
+  const emailKey = `user_email:${input.email.toLowerCase()}`;
+  const existingId = await redis.get<string>(emailKey);
+  const id = existingId ?? randomUUID();
 
-  const [user] = (await sql`
-    insert into users (
-      id,
-      email,
-      name,
-      image,
-      provider,
-      provider_account_id,
-      active,
-      created_at,
-      updated_at
-    )
-    values (
-      ${id},
-      ${input.email},
-      ${input.name ?? null},
-      ${input.image ?? null},
-      ${input.provider ?? null},
-      ${input.providerAccountId ?? null},
-      true,
-      ${now},
-      ${now}
-    )
-    on conflict (email) do update set
-      name = excluded.name,
-      image = excluded.image,
-      provider = excluded.provider,
-      provider_account_id = excluded.provider_account_id,
-      updated_at = excluded.updated_at
-    returning
-      id,
-      email,
-      name,
-      image,
-      provider,
-      provider_account_id,
-      active,
-      created_at,
-      updated_at
-  `) as DbUser[];
+  const user: StoredUser = {
+    id,
+    email: input.email,
+    name: input.name ?? null,
+    image: input.image ?? null,
+    provider: input.provider ?? null,
+    provider_account_id: input.providerAccountId ?? null,
+    active: true,
+    created_at: existingId ? (await getStoredUser(id, redis))?.created_at ?? now.toISOString() : now.toISOString(),
+    updated_at: now.toISOString(),
+  };
+
+  await redis.set(`user:${id}`, user);
+  await redis.set(emailKey, id);
 
   return user;
 }
@@ -94,37 +73,17 @@ export async function requireActiveUser(): Promise<RequireActiveUserResult> {
     return { status: "missing" };
   }
 
-  const sql = getDb();
-  let [user] = (await sql`
-      select
-        id,
-        email,
-        name,
-        image,
-        provider,
-        provider_account_id,
-        active,
-        created_at,
-        updated_at
-      from users
-      where id = ${userId ?? ""}
-    `) as DbUser[];
+  const redis = getRedis();
+  let user: StoredUser | null = null;
+  if (userId) {
+    user = await getStoredUser(userId, redis);
+  }
 
   if (!user && email) {
-    [user] = (await sql`
-      select
-        id,
-        email,
-        name,
-        image,
-        provider,
-        provider_account_id,
-        active,
-        created_at,
-        updated_at
-      from users
-      where email = ${email}
-    `) as DbUser[];
+    const mappedId = await redis.get<string>(`user_email:${email.toLowerCase()}`);
+    if (mappedId) {
+      user = await getStoredUser(mappedId, redis);
+    }
   }
 
   if (!user) {
@@ -136,4 +95,10 @@ export async function requireActiveUser(): Promise<RequireActiveUserResult> {
   }
 
   return { status: "ok", user };
+}
+
+async function getStoredUser(id: string, redis: Redis) {
+  const stored = await redis.get<StoredUser>(`user:${id}`);
+  if (!stored) return null;
+  return stored;
 }

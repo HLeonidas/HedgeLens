@@ -3,7 +3,7 @@
 ## Tech Stack (Current)
 - Next.js (App Router)
 - Auth.js (NextAuth v5) with cookie-based JWT session
-- Postgres (Neon/Vercel Postgres)
+- Upstash Redis (Vercel Storage)
 - Tailwind CSS
 
 ## Quick Start
@@ -17,7 +17,8 @@ Required for Auth + DB:
 - `AUTH_SECRET`
 - `AUTH_GITHUB_ID`
 - `AUTH_GITHUB_SECRET`
-- `POSTGRES_URL` (or `DATABASE_URL`)
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
 
 Optional:
 - `ISIN_PROVIDER_URL`
@@ -38,35 +39,22 @@ Replace/extend the provider list when you add more identity providers.
 - Framework: Next.js (auto-detected)
 - API routes are part of the same deployment under `/api/*`
 
-## Neon (Vercel Storage) Setup
-If you created a Neon database via Vercel, use the steps below to connect it to this app.
+## Upstash Redis (Vercel Storage) Setup
+If you created an Upstash Redis database via Vercel, use the steps below to connect it to this app.
 
-1. **Create or connect a Neon project**
+1. **Create or connect an Upstash database**
    - In the Vercel Dashboard, open your project and go to **Storage**.
-   - Create/select Neon and click **Open in Neon Console**.
+   - Create/select Upstash Redis and open it in the Upstash Console if needed.
 
 2. **Pull env vars locally**
    - Run:
      ```
      vercel env pull .env.development.local
      ```
-   - This populates `DATABASE_URL` (and related Neon variables).
-   - This app reads `POSTGRES_URL` or `DATABASE_URL`.
+   - This populates `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
 
-3. **Run the initial schema**
-   - In the Neon SQL Editor, run:
-     ```
-     -- file: db/migrations/001_init.sql
-     ```
-
-4. **Run the app**
+3. **Run the app**
    - `npm run dev`
-
-Optional (only if you want to use the Neon serverless driver instead of `postgres`):
-```
-npm install @neondatabase/serverless
-```
-Then replace the DB client in `lib/db.ts` with the Neon `neon()` client.
 
 ## Next Steps (Workflow)
 1. Auth setup
