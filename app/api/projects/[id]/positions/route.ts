@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireApiUser } from "@/lib/auth-guard";
+import { computeModelPricing } from "@/lib/pricing/modelPosition";
 import { addPosition } from "@/lib/store/projects";
 import { validateCreatePosition } from "@/lib/validators";
 
@@ -21,7 +22,30 @@ export async function POST(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const position = await addPosition(guard.user.id, resolvedParams.id, parsed.data);
+  const input = parsed.data;
+  const ratio = input.ratio ?? 1;
+  const dividendYield = input.dividendYield ?? 0;
+
+  const modelResult =
+    input.pricingMode === "model"
+      ? computeModelPricing({
+          S: input.underlyingPrice ?? 0,
+          K: input.strike ?? 0,
+          expiry: input.expiry ?? new Date().toISOString(),
+          r: input.rate ?? 0,
+          q: dividendYield,
+          sigma: input.volatility ?? 0,
+          type: input.side,
+        })
+      : null;
+
+  const position = await addPosition(guard.user.id, resolvedParams.id, {
+    ...input,
+    ratio,
+    dividendYield,
+    computed: modelResult?.computed,
+    timeValueCurve: modelResult?.timeValueCurve,
+  });
   if (!position) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }

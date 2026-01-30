@@ -1,7 +1,7 @@
 export default function ComparisonPage() {
   return (
     <div className="h-full flex flex-col xl:flex-row min-h-0 overflow-hidden">
-      <div className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col gap-6 overflow-y-auto custom-scrollbar bg-white min-h-0">
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col gap-6 overflow-y-auto custom-scrollbar min-h-0">
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
           <div className="flex flex-col gap-1">
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">

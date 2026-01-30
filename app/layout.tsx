@@ -23,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de" className={manrope.variable}>
-      <body>
+      <body className="bg-background-light dark:bg-background-dark">
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -32,7 +32,7 @@ export function AppShell({ children, user }: AppShellProps) {
   }
 
   return (
-    <div className="relative flex min-h-screen lg:h-screen flex-col lg:flex-row overflow-hidden bg-background-light text-slate-900">
+    <div className="relative flex min-h-screen lg:h-screen flex-col lg:flex-row overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
       <MobileNav
         isOpen={isSidebarOpen}
         onClose={closeSidebar}
@@ -46,9 +46,13 @@ export function AppShell({ children, user }: AppShellProps) {
         />
       </MobileNav>
 
-      <main className="flex-1 flex flex-col min-h-0 bg-white overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 bg-background-light dark:bg-background-dark overflow-hidden">
         <Header onToggleSidebar={toggleSidebar} />
-        <div className="flex-1 overflow-hidden">{children}</div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full mx-auto p-4 sm:p-6 lg:p-8">
+            {children}
+          </div>
+        </div>
       </main>
     </div>
   );

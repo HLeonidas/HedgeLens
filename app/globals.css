@@ -4,13 +4,23 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
 }
 
 body {
-  @apply bg-background-light text-slate-900 font-display antialiased;
+  @apply bg-background-light text-slate-900 font-display antialiased dark:bg-background-dark dark:text-slate-100;
   min-height: 100vh;
+}
+
+@layer base {
+  input,
+  select,
+  textarea {
+    @apply bg-surface-light text-slate-900 dark:bg-slate-800 dark:text-slate-100;
+  }
 }
 
 .material-symbols-outlined {

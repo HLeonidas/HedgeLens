@@ -17,6 +17,33 @@ function computeRatioSummary(positions: Array<{ side: string; size: number }>) {
   return { totalPuts, totalCalls, ratio };
 }
 
+function computeValueSummary(
+  positions: Array<{
+    pricingMode?: "market" | "model";
+    size: number;
+    ratio?: number;
+    marketPrice?: number;
+    computed?: { fairValue: number; intrinsicValue: number; timeValue: number };
+  }>
+) {
+  return positions.reduce(
+    (acc, position) => {
+      const multiplier = position.size * (position.ratio ?? 1);
+
+      if (position.pricingMode === "model" && position.computed) {
+        acc.totalMarketValue += position.computed.fairValue * multiplier;
+        acc.totalIntrinsicValue += position.computed.intrinsicValue * multiplier;
+        acc.totalTimeValue += position.computed.timeValue * multiplier;
+      } else if (position.marketPrice !== undefined) {
+        acc.totalMarketValue += position.marketPrice * multiplier;
+      }
+
+      return acc;
+    },
+    { totalMarketValue: 0, totalIntrinsicValue: 0, totalTimeValue: 0 }
+  );
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -32,6 +59,7 @@ export async function GET(
 
   const positions = await listPositions(project.id);
   const ratioSummary = computeRatioSummary(positions);
+  const valueSummary = computeValueSummary(positions);
 
-  return NextResponse.json({ project, positions, ratioSummary });
+  return NextResponse.json({ project, positions, ratioSummary, valueSummary });
 }

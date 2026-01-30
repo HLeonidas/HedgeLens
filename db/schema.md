@@ -54,6 +54,18 @@ Indexes:
 - size (numeric, not null)
 - entry_price (numeric, not null)
 - date (date, not null)
+- pricing_mode (text, not null) -- market | model
+- underlying_symbol (text, nullable)
+- underlying_price (numeric, nullable)
+- strike (numeric, nullable)
+- expiry (date, nullable)
+- volatility (numeric, nullable)
+- rate (numeric, nullable)
+- dividend_yield (numeric, nullable)
+- ratio (numeric, nullable) -- Bezugsverhältnis
+- market_price (numeric, nullable)
+- computed (jsonb, nullable) -- { fairValue, intrinsicValue, timeValue, delta, gamma, theta, vega, iv?, asOf }
+- time_value_curve (jsonb, nullable) -- [{ day, value }]
 
 Indexes:
 - positions_project_id_idx on (project_id)

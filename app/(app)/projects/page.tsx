@@ -80,7 +80,7 @@ export default function ProjectsPage() {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6 bg-white">
+    <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div>
         <h2 className="text-2xl font-black text-slate-900">Projects</h2>
         <p className="text-sm text-slate-500">

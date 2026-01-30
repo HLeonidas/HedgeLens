@@ -13,44 +13,44 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const { title, subtitle } = getRouteMeta(pathname);
 
   return (
-    <header className="flex flex-col gap-4 px-4 sm:px-6 lg:px-8 py-4 bg-white border-b border-border-light sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+    <header className="sticky top-0 z-10 flex flex-col gap-4 px-4 sm:px-6 lg:px-8 h-[75px] bg-surface-light dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex items-center gap-3">
           <button
-            className="lg:hidden inline-flex items-center justify-center size-9 rounded-lg border border-border-light text-slate-600 hover:bg-slate-50 transition-colors"
+            className="lg:hidden inline-flex items-center justify-center size-9 rounded-md border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             type="button"
             aria-label="Toggle sidebar"
             onClick={onToggleSidebar}
           >
             <span className="material-symbols-outlined text-lg">menu</span>
           </button>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">{title}</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
+            {title}
+          </h1>
         </div>
-        <div className="hidden sm:block h-6 w-px bg-slate-200"></div>
         {subtitle ? (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
-              <span className="material-symbols-outlined text-sm">swap_horiz</span>
-              {subtitle}
-            </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase">
+            <span className="text-slate-300 dark:text-slate-600">/</span>
+            <span className="material-symbols-outlined text-sm">sync_alt</span>
+            {subtitle}
           </div>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 w-full sm:w-auto">
-        <label className="flex items-center bg-slate-50 border border-border-light rounded-lg px-3 py-1.5 focus-within:ring-2 ring-accent/20 transition-all w-full sm:w-auto">
+        <label className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-md px-3 py-1.5 focus-within:ring-2 ring-primary/20 transition-all w-full sm:w-auto">
           <span className="material-symbols-outlined text-slate-400 text-xl">search</span>
           <input
-            className="bg-transparent border-none focus:ring-0 text-sm w-full sm:w-64 placeholder:text-slate-400 text-slate-900"
+            className="bg-transparent border-none focus:ring-0 text-sm w-full sm:w-64 placeholder:text-slate-400 text-slate-900 dark:text-slate-100"
             placeholder="Add comparison asset..."
             type="text"
           />
         </label>
         <div className="flex flex-wrap gap-2">
-          <button className="p-2 rounded-lg border border-border-light text-slate-500 hover:bg-slate-50 transition-colors">
+          <button className="p-2 rounded-md border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <span className="material-symbols-outlined">download</span>
           </button>
-          <button className="p-2 rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors shadow-sm px-4 flex items-center gap-2 w-full sm:w-auto justify-center">
+          <button className="p-2 rounded-md bg-primary text-white hover:bg-blue-700 transition-colors shadow-sm shadow-blue-500/20 px-4 flex items-center gap-2 w-full sm:w-auto justify-center">
             <span className="text-sm font-bold">New Analysis</span>
           </button>
         </div>

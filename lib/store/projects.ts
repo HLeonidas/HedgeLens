@@ -21,7 +21,30 @@ export type Position = {
   side: "put" | "call";
   size: number;
   entryPrice: number;
+  pricingMode: "market" | "model";
+  underlyingSymbol?: string;
+  underlyingPrice?: number;
+  strike?: number;
+  expiry?: string;
+  volatility?: number;
+  rate?: number;
+  dividendYield?: number;
+  ratio?: number;
+  marketPrice?: number;
+  computed?: {
+    fairValue: number;
+    intrinsicValue: number;
+    timeValue: number;
+    delta: number;
+    gamma: number;
+    theta: number;
+    vega: number;
+    iv?: number;
+    asOf: string;
+  };
+  timeValueCurve?: Array<{ day: number; value: number }>;
   createdAt: string;
+  updatedAt: string;
 };
 
 function projectKey(projectId: string) {
@@ -116,6 +139,18 @@ export async function addPosition(
     side: Position["side"];
     size: number;
     entryPrice: number;
+    pricingMode: Position["pricingMode"];
+    underlyingSymbol?: string;
+    underlyingPrice?: number;
+    strike?: number;
+    expiry?: string;
+    volatility?: number;
+    rate?: number;
+    dividendYield?: number;
+    ratio?: number;
+    marketPrice?: number;
+    computed?: Position["computed"];
+    timeValueCurve?: Position["timeValueCurve"];
   }
 ) {
   const redis = getRedis();
@@ -131,7 +166,20 @@ export async function addPosition(
     side: input.side,
     size: input.size,
     entryPrice: input.entryPrice,
+    pricingMode: input.pricingMode,
+    underlyingSymbol: input.underlyingSymbol,
+    underlyingPrice: input.underlyingPrice,
+    strike: input.strike,
+    expiry: input.expiry,
+    volatility: input.volatility,
+    rate: input.rate,
+    dividendYield: input.dividendYield,
+    ratio: input.ratio,
+    marketPrice: input.marketPrice,
+    computed: input.computed,
+    timeValueCurve: input.timeValueCurve,
     createdAt: now,
+    updatedAt: now,
   };
 
   await redis.set(positionKey(positionId), position);
@@ -142,6 +190,45 @@ export async function addPosition(
   await redis.set(projectKey(projectId), { ...project, updatedAt: now });
 
   return position;
+}
+
+export async function getPosition(userId: string, projectId: string, positionId: string) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const position = await redis.get<Position>(positionKey(positionId));
+  if (!position || position.projectId !== projectId) return null;
+  return position;
+}
+
+export async function updatePosition(
+  userId: string,
+  projectId: string,
+  positionId: string,
+  input: Partial<Omit<Position, "id" | "projectId" | "createdAt">>
+) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const position = await redis.get<Position>(positionKey(positionId));
+  if (!position || position.projectId !== projectId) return null;
+
+  const now = new Date().toISOString();
+  const updated: Position = {
+    ...position,
+    ...input,
+    id: position.id,
+    projectId: position.projectId,
+    createdAt: position.createdAt,
+    updatedAt: now,
+  };
+
+  await redis.set(positionKey(positionId), updated);
+  await redis.set(projectKey(projectId), { ...project, updatedAt: now });
+
+  return updated;
 }
 
 export async function deletePosition(

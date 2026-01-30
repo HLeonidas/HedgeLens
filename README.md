@@ -286,3 +286,17 @@ If you created an Upstash Redis database via Vercel, use the steps below to conn
 - Optimization: grid search over ratio combinations
 - Investments: profit = (currentPrice - buyInPrice) * shares
 - Expected: target value = expectedPrice * shares
+
+### 7) Options Model Pricing (Black–Scholes)
+Model pricing is used for warrants in model mode. Inputs are decimals: volatility `0.25` for 25%, rate `0.03` for 3%, dividend yield `0.0`.
+
+Core formulas:
+- `d1 = (ln(S/K) + (r - q + 0.5*sigma^2) * T) / (sigma * sqrt(T))`
+- `d2 = d1 - sigma * sqrt(T)`
+- Call price = `S*e^{-qT}*N(d1) - K*e^{-rT}*N(d2)`
+- Put price = `K*e^{-rT}*N(-d2) - S*e^{-qT}*N(-d1)`
+- Greeks use standard Black–Scholes definitions (delta, gamma, theta, vega)
+
+Validation examples (approximate):
+- `S=100, K=100, T=1, r=0.05, q=0, sigma=0.20` → Call ≈ `10.45`, Put ≈ `5.57`
+- Compare results against trusted online Black–Scholes calculators using the same inputs.

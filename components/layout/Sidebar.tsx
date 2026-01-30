@@ -79,25 +79,25 @@ export function Sidebar({
   return (
     <aside
       className={[
-        "w-full border-b lg:border-b-0 lg:border-r border-border-light flex flex-col bg-surface-grey z-20 shrink-0 lg:h-screen min-h-0 transition-[width] duration-200",
+        "w-full border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 flex flex-col bg-surface-light dark:bg-surface-dark z-20 shrink-0 lg:h-screen min-h-0 transition-[width] duration-200",
         isCollapsed ? "lg:w-20" : "lg:w-64",
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      <div className="px-4 sm:px-6 lg:px-6 py-4 border-b border-border-light h-[75px] flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 text-accent">
-          <div className="size-9 bg-accent/10 rounded-lg flex items-center justify-center">
-            <span className="material-symbols-outlined text-xl text-accent">analytics</span>
+      <div className="px-6 py-6 border-b border-slate-200 dark:border-slate-800 h-[75px] flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-primary">
+          <div className="size-9 bg-blue-50 dark:bg-blue-900/30 rounded-md flex items-center justify-center">
+            <span className="material-symbols-outlined text-xl text-primary">analytics</span>
           </div>
           {isCollapsed ? null : (
-            <h2 className="text-slate-900 text-lg font-bold leading-tight tracking-tight">
+            <h2 className="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-tight">
               HedgeLens
             </h2>
           )}
         </div>
         <button
-          className="hidden lg:inline-flex items-center justify-center size-9 rounded-lg border border-border-light text-slate-600 hover:bg-white transition-colors"
+          className="hidden lg:inline-flex items-center justify-center size-9 rounded-md border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           type="button"
           aria-label="Toggle sidebar"
           onClick={onToggleCollapse}
@@ -108,7 +108,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 custom-scrollbar min-h-0">
+      <nav className="flex-1 overflow-y-auto p-6 flex flex-col space-y-6 custom-scrollbar min-h-0">
         {navSections.map((section) => {
           const isActive = isSectionActive(section.items);
           const isSectionCollapsed =
@@ -120,15 +120,15 @@ export function Sidebar({
             <div key={section.id} className="flex flex-col gap-2">
               <div
                 className={[
-                  "flex items-center justify-between px-3 text-xs font-bold uppercase tracking-wider",
-                  isActive ? "text-accent" : "text-slate-400",
+                  "flex items-center justify-between px-3 text-[10px] font-bold uppercase tracking-wider",
+                  isActive ? "text-primary dark:text-blue-400" : "text-slate-400",
                   isCollapsed ? "justify-center px-0" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
               >
                 {isCollapsed ? (
-                  <span className="material-symbols-outlined text-base">
+                  <span className="material-symbols-outlined text-base text-slate-400">
                     {section.id === "main"
                       ? "home"
                       : section.id === "analysis"
@@ -140,7 +140,7 @@ export function Sidebar({
                 )}
                 {!isCollapsed && section.collapsible ? (
                   <button
-                    className="inline-flex items-center justify-center size-6 rounded-md text-slate-400 hover:text-slate-600 hover:bg-white"
+                    className="inline-flex items-center justify-center size-6 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                     type="button"
                     aria-label={`Toggle ${section.label}`}
                     onClick={() =>
@@ -174,7 +174,7 @@ export function Sidebar({
         <div className="mt-2 flex flex-col gap-2">
           <div
             className={[
-              "flex items-center justify-between px-3 text-xs font-bold uppercase tracking-wider",
+              "flex items-center justify-between px-3 text-[10px] font-bold uppercase tracking-wider",
               "text-slate-400",
               isCollapsed ? "justify-center px-0" : "",
             ]
@@ -182,14 +182,16 @@ export function Sidebar({
               .join(" ")}
           >
             {isCollapsed ? (
-              <span className="material-symbols-outlined text-base">visibility</span>
+              <span className="material-symbols-outlined text-base text-slate-400">
+                visibility
+              </span>
             ) : (
               <span>Watchlist</span>
             )}
             {isCollapsed ? null : (
               <Link
                 href={"/projects" as Route}
-                className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
+                className="text-[10px] font-semibold text-slate-400 hover:text-primary"
                 onClick={onNavClick}
               >
                 View all
@@ -197,7 +199,7 @@ export function Sidebar({
             )}
           </div>
           {isCollapsed ? (
-            <div className="flex items-center justify-center gap-1 rounded-lg border border-border-light bg-white py-2 text-xs font-semibold text-slate-500">
+            <div className="flex items-center justify-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-300">
               {watchlist.length} items
             </div>
           ) : (
@@ -205,11 +207,13 @@ export function Sidebar({
               {watchlist.slice(0, 5).map((item) => (
                 <div
                   key={item.isin}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-border-light"
+                  className="group flex items-center justify-between px-3 py-2 rounded-md bg-surface-light dark:bg-surface-dark border border-slate-200 dark:border-slate-800 hover:border-primary/50 transition-colors"
                 >
-                  <span className="text-xs font-mono text-slate-700">{item.isin}</span>
+                  <span className="text-xs font-mono text-slate-700 dark:text-slate-200">
+                    {item.isin}
+                  </span>
                   <button
-                    className="inline-flex items-center justify-center size-6 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    className="inline-flex items-center justify-center size-6 rounded-md text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 transition-transform group-hover:rotate-6"
                     type="button"
                     aria-label={`Refresh price for ${item.isin}`}
                   >
@@ -222,32 +226,32 @@ export function Sidebar({
         </div>
       </nav>
 
-      <div className="p-4 sm:p-5 border-t border-border-light">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="p-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-3 mb-4 rounded-md border border-slate-200 dark:border-slate-800 px-3 py-2 bg-white dark:bg-slate-800">
           {user.image ? (
             <img
               src={user.image}
               alt={user.name ?? "GitHub user"}
-              className="size-10 rounded-full object-cover"
+              className="size-8 rounded-full object-cover"
             />
           ) : (
-            <div className="size-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+            <div className="size-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-600 dark:text-slate-200">
               {getInitials(user.name, user.email)}
             </div>
           )}
           {isCollapsed ? null : (
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-slate-900">
+              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                 {user.name ?? user.email ?? "GitHub User"}
               </span>
-              <span className="text-xs text-slate-500">GitHub</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">GitHub</span>
             </div>
           )}
         </div>
         <Link
           href={"/settings" as Route}
           className={[
-            "w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-white border border-border-light text-sm font-semibold text-slate-700 hover:bg-slate-50",
+            "w-full flex items-center justify-center gap-2 py-2 px-4 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800",
             isCollapsed ? "px-0" : "",
           ]
             .filter(Boolean)

@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -79,14 +80,66 @@ export default function SettingsPage() {
     setPage(1);
   }, [query, pageSize, sort, order, activeFilter]);
 
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial =
+      stored === "dark" || stored === "light" ? stored : prefersDark ? "dark" : "light";
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
+  function handleThemeChange(nextTheme: "light" | "dark") {
+    setTheme(nextTheme);
+    localStorage.setItem("theme", nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }
+
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6 bg-white">
+    <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-black text-slate-900">Settings</h2>
           <p className="text-sm text-slate-500">
             Manage your account, team permissions, and active sessions.
           </p>
+        </div>
+      </div>
+
+      <div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+              Appearance
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 font-semibold">
+              Switch between light and dark mode.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-border-light dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1">
+            <button
+              type="button"
+              onClick={() => handleThemeChange("light")}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                theme === "light"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100"
+              }`}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => handleThemeChange("dark")}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                theme === "dark"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100"
+              }`}
+            >
+              Dark
+            </button>
+          </div>
         </div>
       </div>
 
