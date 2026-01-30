@@ -1,6 +1,14 @@
 # HedgeLens
 
-HedgeLens is a web app for tracking options warrants and related portfolios (projects, positions, investments, and crypto), with lightweight analytics and pricing tools for scenario evaluation.
+HedgeLens is a portfolio intelligence workspace focused on options warrants (Optionsscheine) with a companion holdings view for investments and crypto. It combines project-based warrant positions, lightweight pricing/greeks, and scenario/ratio analytics.
+
+## App Concept (Short)
+- Users own projects.
+- Projects contain option positions (put/call) with market or model pricing.
+- Users also track investments and crypto independently of projects.
+- ISIN metadata can enrich positions and investments.
+
+See `concepts/app-overview.md` for the full object relationship map.
 
 ## Implemented Features
 - Auth.js (GitHub OAuth) session handling and API guards.
@@ -46,7 +54,28 @@ HedgeLens is a web app for tracking options warrants and related portfolios (pro
 - Pricing & lookups: `/api/isin/lookup`, `/api/price/isin`, `/api/price/crypto`
 - Analytics: `/api/simulate`, `/api/optimize`, `/api/optionsschein/calculate`
 
-## Environment Variables (required for auth + Redis)
+## Concepts
+- `concepts/app-overview.md`
+- `concepts/investments-page.md`
+- `concepts/projects-page.md`
+- `concepts/project-detail-positions.md`
+- `concepts/optionsschein-calculator.md`
+- `concepts/settings-page.md`
+
+## Tech Stack
+- Next.js (App Router)
+- Auth.js (NextAuth v5)
+- Upstash Redis (Vercel Storage)
+- Tailwind CSS
+
+## Quick Start
+1. Create `.env.local` values (see Environment).
+2. `npm install`
+3. `npm run dev`
+4. Open `http://localhost:3000`
+
+## Environment Variables
+Required:
 - `AUTH_SECRET`
 - `AUTH_GITHUB_ID`
 - `AUTH_GITHUB_SECRET`
@@ -56,3 +85,6 @@ HedgeLens is a web app for tracking options warrants and related portfolios (pro
 Optional:
 - `ISIN_PROVIDER_URL`
 - `ISIN_PROVIDER_KEY`
+
+## Storage Schema
+- `db/schema.md` describes the current storage shape and cache keys.

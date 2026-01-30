@@ -48,6 +48,8 @@ export type Position = {
   updatedAt: string;
 };
 
+type RiskProfile = NonNullable<Project["riskProfile"]>;
+
 function projectKey(projectId: string) {
   return `project:${projectId}`;
 }
@@ -62,6 +64,82 @@ function positionKey(positionId: string) {
 
 function userProjectsKey(userId: string) {
   return `user:${userId}:projects`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function computePositionRiskScore(position: Position, now: Date) {
+  const volatility = position.volatility ?? 0.3;
+  const volFactor = clamp(volatility / 0.6, 0, 1);
+
+  let timeFactor = 0.5;
+  if (position.expiry) {
+    const expiryMs = Date.parse(position.expiry);
+    if (Number.isFinite(expiryMs)) {
+      const days = Math.max(0, (expiryMs - now.getTime()) / (1000 * 60 * 60 * 24));
+      timeFactor = 1 - clamp(days / 365, 0, 1);
+    }
+  }
+
+  let moneynessPenalty = 0.5;
+  if (position.underlyingPrice && position.strike) {
+    const ratio =
+      position.side === "call"
+        ? position.underlyingPrice / position.strike
+        : position.strike / position.underlyingPrice;
+    moneynessPenalty = clamp(1 - ratio, 0, 1);
+  }
+
+  const leverageRaw = position.ratio ?? 1;
+  const leverageFactor = clamp(leverageRaw / 5, 0, 1);
+  const sizeFactor = clamp(Math.log10(position.size + 1) / 2, 0, 1);
+  const pricingPenalty = position.pricingMode === "model" ? 0.1 : 0;
+
+  const score =
+    0.4 * volFactor +
+    0.25 * timeFactor +
+    0.2 * moneynessPenalty +
+    0.1 * leverageFactor +
+    0.05 * pricingPenalty +
+    0.05 * sizeFactor;
+
+  return clamp(score * 100, 0, 100);
+}
+
+function riskProfileFromScore(score: number): RiskProfile {
+  if (score < 35) return "conservative";
+  if (score < 65) return "balanced";
+  return "aggressive";
+}
+
+async function updateProjectRiskProfile(
+  redis: ReturnType<typeof getRedis>,
+  project: Project,
+  positions: Position[]
+) {
+  if (positions.length === 0) {
+    return project;
+  }
+
+  const now = new Date();
+  const weighted = positions.map((position) => {
+    const weight = Math.max(1, Math.sqrt(position.size));
+    return { score: computePositionRiskScore(position, now), weight };
+  });
+  const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+  const weightedScore = weighted.reduce((sum, item) => sum + item.score * item.weight, 0);
+  const averageScore = totalWeight > 0 ? weightedScore / totalWeight : 0;
+
+  const nextProfile = riskProfileFromScore(averageScore);
+  if (project.riskProfile === nextProfile) {
+    return project;
+  }
+
+  const updatedProject = { ...project, riskProfile: nextProfile };
+  await redis.set(projectKey(project.id), updatedProject);
+  return updatedProject;
 }
 
 export async function listProjects(userId: string, limit = 50) {
@@ -190,7 +268,11 @@ export async function addPosition(
     score: Date.parse(now),
     member: positionId,
   });
-  await redis.set(projectKey(projectId), { ...project, updatedAt: now });
+  const updatedProject = { ...project, updatedAt: now };
+  await redis.set(projectKey(projectId), updatedProject);
+
+  const positions = await listPositions(projectId);
+  await updateProjectRiskProfile(redis, updatedProject, positions);
 
   return position;
 }
@@ -229,7 +311,11 @@ export async function updatePosition(
   };
 
   await redis.set(positionKey(positionId), updated);
-  await redis.set(projectKey(projectId), { ...project, updatedAt: now });
+  const updatedProject = { ...project, updatedAt: now };
+  await redis.set(projectKey(projectId), updatedProject);
+
+  const positions = await listPositions(projectId);
+  await updateProjectRiskProfile(redis, updatedProject, positions);
 
   return updated;
 }
@@ -261,7 +347,11 @@ export async function deletePosition(
 
   await redis.del(positionKey(positionId));
   await redis.zrem(projectPositionsKey(projectId), positionId);
-  await redis.set(projectKey(projectId), { ...project, updatedAt: new Date().toISOString() });
+  const updatedProject = { ...project, updatedAt: new Date().toISOString() };
+  await redis.set(projectKey(projectId), updatedProject);
+
+  const positions = await listPositions(projectId);
+  await updateProjectRiskProfile(redis, updatedProject, positions);
 
   return true;
 }
