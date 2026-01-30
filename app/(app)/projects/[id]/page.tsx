@@ -29,6 +29,7 @@ type TimeValuePoint = { day: number; value: number };
 type Position = {
   id: string;
   projectId: string;
+  name?: string;
   isin: string;
   side: "put" | "call";
   size: number;
@@ -88,6 +89,7 @@ export default function ProjectDetailPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [isin, setIsin] = useState("");
+  const [name, setName] = useState("");
   const [side, setSide] = useState<Position["side"]>("call");
   const [size, setSize] = useState(1);
   const [entryPrice, setEntryPrice] = useState<number | "">("");
@@ -167,6 +169,7 @@ export default function ProjectDetailPage() {
 
     try {
       const payload = {
+        name: name.trim() || undefined,
         isin: isin.trim(),
         side,
         size: Number(size),
@@ -204,6 +207,7 @@ export default function ProjectDetailPage() {
       }
 
       setIsin("");
+      setName("");
       setSide("call");
       setSize(1);
       setEntryPrice("");
@@ -308,6 +312,15 @@ export default function ProjectDetailPage() {
             Add Position
           </h3>
           <div className="grid gap-4">
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Name</label>
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-border-light px-3 py-2 text-sm"
+                placeholder="Optional"
+              />
+            </div>
             <div>
               <label className="text-xs font-bold uppercase text-slate-500">ISIN</label>
               <input

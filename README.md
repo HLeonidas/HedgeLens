@@ -1,19 +1,52 @@
 # HedgeLens
 
-## Tech Stack (Current)
-- Next.js (App Router)
-- Auth.js (NextAuth v5) with cookie-based JWT session
-- Upstash Redis (Vercel Storage)
-- Tailwind CSS
+HedgeLens is a web app for tracking options warrants and related portfolios (projects, positions, investments, and crypto), with lightweight analytics and pricing tools for scenario evaluation.
 
-## Quick Start
-1. Create `.env.local` values (see Environment).
-2. `npm install`
-3. `npm run dev`
-4. Open `http://localhost:3000`
+## Implemented Features
+- Auth.js (GitHub OAuth) session handling and API guards.
+- User management in Settings: list users, search/filter/sort, theme toggle, logout.
+- Projects: create and list projects; per-project detail view with positions.
+- Options positions (project detail):
+  - Add/delete positions (call/put), pricing mode (market or model).
+  - Black–Scholes model pricing and Greeks (with recompute).
+  - Ratio summary and value summary panels.
+  - Time value curve generation and display in details.
+- Investments workspace (`/investments`):
+  - Track investments, options positions, and crypto positions in one view.
+  - Inline editing, add new entries, mark investments sold, and summary totals by currency.
+  - ISIN hidden by default with a hover info tooltip in the table.
+- Optionsschein calculator API (`/api/optionsschein/calculate`) with scenario inputs and Greeks.
+- Analytics APIs:
+  - Scenario simulation (`/api/simulate`) with expected return/variance/VAR and time-value curve.
+  - Ratio optimization (`/api/optimize`).
+- ISIN lookup API (`/api/isin/lookup`) with external provider support and local demo fallback.
+- Price APIs (`/api/price/isin`, `/api/price/crypto`) returning demo data.
+- Redis-backed storage (Upstash) for users, projects, positions, investments, options positions, crypto positions.
 
-## Environment
-Required for Auth + DB:
+## Not Done Yet / Placeholder Areas
+- Dashboard metrics and charts are static placeholders.
+- Charts page uses demo data only.
+- Comparison, Put-Call Ratio, Scenarios, and Volatility pages are UI placeholders (not wired to data).
+- Standalone `/crypto` page is mock data (real crypto tracking currently lives in `/investments`).
+- Price feeds for ISIN and crypto are mocked; real market data integration is still pending.
+- User actions in Settings (edit/delete) are UI-only, not wired to APIs.
+- Persistence for scenario runs/analytics history is not implemented (APIs return computed results only).
+
+## Primary App Areas
+- `/projects` and `/projects/[id]`: Create projects and manage options positions.
+- `/investments`: All investments, options positions, and crypto positions with summary totals.
+- `/analysis/optionsschein-rechner`: Optionsschein pricing calculator.
+- `/settings`: User list, theme toggle, session logout.
+
+## Key API Routes
+- Auth: `/api/auth/[...nextauth]`, `/api/me`, `/api/protected`
+- Projects & positions: `/api/projects`, `/api/projects/[id]`, `/api/projects/[id]/positions`
+- Optionsschein positions: `/api/optionsschein/positions`
+- Investments & crypto: `/api/investments`, `/api/crypto`
+- Pricing & lookups: `/api/isin/lookup`, `/api/price/isin`, `/api/price/crypto`
+- Analytics: `/api/simulate`, `/api/optimize`, `/api/optionsschein/calculate`
+
+## Environment Variables (required for auth + Redis)
 - `AUTH_SECRET`
 - `AUTH_GITHUB_ID`
 - `AUTH_GITHUB_SECRET`
@@ -23,280 +56,3 @@ Required for Auth + DB:
 Optional:
 - `ISIN_PROVIDER_URL`
 - `ISIN_PROVIDER_KEY`
-
-## App Router Layout
-- `app/` – routes + layouts
-- `app/api/*` – server-only API routes
-- `lib/` – server-only helpers (DB, analytics)
-
-## Auth
-Auth is implemented via Auth.js with GitHub OAuth.
-Replace/extend the provider list when you add more identity providers.
-
-## Deployment (Vercel)
-- Build: `npm run build`
-- Start: `npm run start`
-- Framework: Next.js (auto-detected)
-- API routes are part of the same deployment under `/api/*`
-
-## Upstash Redis (Vercel Storage) Setup
-If you created an Upstash Redis database via Vercel, use the steps below to connect it to this app.
-
-1. **Create or connect an Upstash database**
-   - In the Vercel Dashboard, open your project and go to **Storage**.
-   - Create/select Upstash Redis and open it in the Upstash Console if needed.
-
-2. **Pull env vars locally**
-   - Run:
-     ```
-     vercel env pull .env.development.local
-     ```
-   - This populates `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
-
-3. **Run the app**
-   - `npm run dev`
-
-## Security
-- Add a server-side guard that checks `users.active` on every page and API request. If inactive, deny access.
-- On login, create (or update) the user record in Postgres so every authenticated user has an account row.
-
-## Technical Specification (v1/MVP)
-
-### 1) Goal & Scope
-- Online tool for options warrants (derivatives)
-- Users enter ISIN -> product details loaded via API
-- Capture and optimize put/call ratio
-- Forecasts via scenario simulation
-- Time value (over maturity) as a chart
-- User accounts with saved projects
-- Investment tracking (buy-in, shares, current price, target/expected)
-- Crypto portfolio with own positions and target prices
-
----
-
-### 2) Tech Stack (Current)
-- Frontend: Next.js (App Router) + Tailwind CSS
-- Auth: Auth.js (NextAuth v5) with cookie-based JWT session
-- Data: Postgres (Neon/Vercel Postgres)
-- Hosting/Backend: Vercel
-  - Next.js app + API routes under `/api/*`
-  - Serverless functions for ISIN proxy, simulation, optimization
-
----
-
-### 3) Architecture Overview
-- Next.js (Vercel) <-> Auth.js (GitHub OAuth)
-- Next.js (Vercel) <-> Postgres (Users, Projects, Results)
-- Next.js (Vercel) <-> API routes (`/api`) (ISIN lookup, simulation, optimization)
-
----
-
-### 4) Data Model (Postgres)
-
-**/users/{uid}**
-- email, createdAt, preferences
-- riskProfile: conservative | balanced | aggressive
-
-**/projects/{projectId}**
-- ownerUid
-- name
-- createdAt, updatedAt
-- baseCurrency
-- ratios: putCount, callCount, ratio
-- constraints: maxLoss, minReturn, maxVolatility, horizonDays
-
-**/instruments/{isin}**
-- isin
-- name
-- issuer
-- type (put/call)
-- underlying
-- strike
-- expiry
-- currency
-- price
-- greeks? (delta, gamma, theta, vega) optional
-- fetchedAt
-
-**/positions/{positionId}**
-- projectId
-- isin
-- side: put | call
-- size
-- entryPrice
-- date
-
-**/scenarios/{scenarioId}**
-- projectId
-- name (bear/base/bull/custom)
-- volatility
-- drift
-- horizonDays
-- steps
-
-**/analytics/{analyticsId}**
-- projectId
-- expectedReturn
-- variance
-- var95
-- bestRatioSet
-- timeValueCurve (array)
-
-**/investments/{positionId}**
-- ownerUid
-- isin
-- name
-- shares
-- buyInPrice
-- currentPrice
-- expectedPrice
-- currency
-- updatedAt
-
-**/crypto_positions/{positionId}**
-- ownerUid
-- symbol (e.g., BTC, ETH)
-- name
-- shares
-- buyInPrice
-- currentPrice
-- expectedPrice
-- currency
-- updatedAt
-
----
-
-### 5) API Contracts (API Routes)
-
-#### 5.1 ISIN Lookup
-**POST** `/api/isin/lookup`
-- Request:
-```json
-{ "isin": "DE000..." }
-```
-- Response:
-```json
-{
-  "isin": "DE000...",
-  "name": "Product Name",
-  "issuer": "Issuer",
-  "type": "call",
-  "underlying": "DAX",
-  "strike": 19000,
-  "expiry": "2026-06-19",
-  "currency": "EUR",
-  "price": 2.34,
-  "greeks": { "delta": 0.42, "theta": -0.03 }
-}
-```
-- Notes: Serverless function acts as a proxy for the external ISIN provider (API key hidden).
-
----
-
-#### 5.2 Latest Price (ISIN)
-**POST** `/api/price/isin`
-- Request:
-```json
-{ "isin": "DE000..." }
-```
-- Response:
-```json
-{
-  "isin": "DE000...",
-  "name": "Product Name",
-  "price": 12.34,
-  "currency": "EUR",
-  "asOf": "2026-01-30T10:00:00Z"
-}
-```
-- Notes: Price is fetched server-side and stored in Vercel Storage.
-
----
-
-#### 5.3 Latest Price (Crypto)
-**POST** `/api/price/crypto`
-- Request:
-```json
-{ "symbol": "BTC" }
-```
-- Response:
-```json
-{
-  "symbol": "BTC",
-  "name": "Bitcoin",
-  "price": 42000,
-  "currency": "USD",
-  "asOf": "2026-01-30T10:00:00Z"
-}
-```
-- Notes: Price is fetched server-side and stored in Vercel Storage.
-
----
-
-#### 5.4 Scenario Simulation
-**POST** `/api/simulate`
-- Request:
-```json
-{
-  "projectId": "...",
-  "positions": [{ "isin": "...", "size": 10, "entryPrice": 2.10 }],
-  "scenario": { "volatility": 0.25, "drift": 0.04, "horizonDays": 90, "steps": 90 }
-}
-```
-- Response:
-```json
-{
-  "expectedReturn": 0.12,
-  "variance": 0.08,
-  "var95": -0.15,
-  "timeValueCurve": [ { "day": 0, "value": 2.34 }, "..." ],
-  "outcomes": [ { "pnl": -120 }, { "pnl": 80 }, "..." ]
-}
-```
-
----
-
-#### 5.5 Ratio Optimization
-**POST** `/api/optimize`
-- Request:
-```json
-{
-  "projectId": "...",
-  "objective": "max_return | min_risk | best_ratio",
-  "constraints": { "maxLoss": -500, "minReturn": 0.05 },
-  "searchSpace": { "putMin": 0, "putMax": 10, "callMin": 0, "callMax": 10 }
-}
-```
-- Response:
-```json
-{
-  "bestRatio": { "putCount": 3, "callCount": 7, "ratio": 0.43 },
-  "expectedReturn": 0.14,
-  "variance": 0.06,
-  "var95": -0.10
-}
-```
-
----
-
-### 6) Calculation Logic
-- Put/Call ratio = putCount / callCount (callCount > 0)
-- Scenario simulation: simplified stochastic model (GBM-like)
-- Time value: linear/simplified modeling with theta
-- Optimization: grid search over ratio combinations
-- Investments: profit = (currentPrice - buyInPrice) * shares
-- Expected: target value = expectedPrice * shares
-
-### 7) Options Model Pricing (Black–Scholes)
-Model pricing is used for warrants in model mode. Inputs are decimals: volatility `0.25` for 25%, rate `0.03` for 3%, dividend yield `0.0`.
-
-Core formulas:
-- `d1 = (ln(S/K) + (r - q + 0.5*sigma^2) * T) / (sigma * sqrt(T))`
-- `d2 = d1 - sigma * sqrt(T)`
-- Call price = `S*e^{-qT}*N(d1) - K*e^{-rT}*N(d2)`
-- Put price = `K*e^{-rT}*N(-d2) - S*e^{-qT}*N(-d1)`
-- Greeks use standard Black–Scholes definitions (delta, gamma, theta, vega)
-
-Validation examples (approximate):
-- `S=100, K=100, T=1, r=0.05, q=0, sigma=0.20` → Call ≈ `10.45`, Put ≈ `5.57`
-- Compare results against trusted online Black–Scholes calculators using the same inputs.

@@ -7,6 +7,7 @@ export type CreateProjectInput = {
 };
 
 export type CreatePositionInput = {
+  name?: string;
   isin: string;
   side: "put" | "call";
   size: number;
@@ -54,6 +55,7 @@ const dateSchema = z.string().refine((value) => Number.isFinite(Date.parse(value
 });
 
 const createMarketSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80, "Name is too long").optional(),
   isin: isinSchema,
   side: sideSchema,
   size: sizeSchema,
@@ -68,6 +70,7 @@ const createMarketSchema = z.object({
 });
 
 const createModelSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80, "Name is too long").optional(),
   isin: isinSchema,
   side: sideSchema,
   size: sizeSchema,
@@ -94,6 +97,7 @@ const createPositionSchema = z.discriminatedUnion("pricingMode", [
 ]);
 
 const updatePositionSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80, "Name is too long").optional(),
   isin: isinSchema.optional(),
   side: sideSchema.optional(),
   size: sizeSchema.optional(),

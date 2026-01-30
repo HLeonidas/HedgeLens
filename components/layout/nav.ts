@@ -72,6 +72,13 @@ export const navSections: NavSection[] = [
         title: "Comparison View",
         subtitle: "Side-by-side analysis",
       },
+      {
+        href: "/analysis/optionsschein-rechner",
+        label: "Optionsschein-Rechner",
+        icon: "calculate",
+        title: "Optionsschein-Rechner",
+        subtitle: "Model-based OS calculator",
+      },
     ],
   },
   {

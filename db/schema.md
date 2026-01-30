@@ -49,6 +49,7 @@ Indexes:
 ### positions
 - id (text, pk)
 - project_id (text, not null)
+- name (text, nullable)
 - isin (text, not null)
 - side (text, not null) -- put | call
 - size (numeric, not null)
@@ -70,6 +71,21 @@ Indexes:
 Indexes:
 - positions_project_id_idx on (project_id)
 - positions_isin_idx on (isin)
+
+### options_positions (standalone, KV-backed)
+- id (text, pk)
+- owner_uid (text, not null)
+- project_id (text, nullable)
+- name (text, nullable)
+- isin (text, not null)
+- side (text, not null) -- put | call
+- size (numeric, not null)
+- entry_price (numeric, not null)
+- pricing_mode (text, not null) -- market | model
+- market_price (numeric, nullable)
+- computed (jsonb, nullable)
+- created_at (timestamptz, not null)
+- updated_at (timestamptz, not null)
 
 ### scenarios
 - id (text, pk)
@@ -106,6 +122,9 @@ Indexes:
 - buy_in_price (numeric, not null)
 - current_price (numeric, not null)
 - expected_price (numeric, nullable)
+- status (text, nullable) -- open | sold
+- sold_price (numeric, nullable)
+- sold_at (timestamptz, nullable)
 - currency (text, not null)
 - updated_at (timestamptz, not null)
 

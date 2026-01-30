@@ -17,6 +17,7 @@ export type Project = {
 export type Position = {
   id: string;
   projectId: string;
+  name?: string;
   isin: string;
   side: "put" | "call";
   size: number;
@@ -135,6 +136,7 @@ export async function addPosition(
   userId: string,
   projectId: string,
   input: {
+    name?: string;
     isin: string;
     side: Position["side"];
     size: number;
@@ -162,6 +164,7 @@ export async function addPosition(
   const position: Position = {
     id: positionId,
     projectId,
+    name: input.name,
     isin: input.isin,
     side: input.side,
     size: input.size,
@@ -229,6 +232,17 @@ export async function updatePosition(
   await redis.set(projectKey(projectId), { ...project, updatedAt: now });
 
   return updated;
+}
+
+export async function getPositionByIdForUser(userId: string, positionId: string) {
+  const redis = getRedis();
+  const position = await redis.get<Position>(positionKey(positionId));
+  if (!position) return null;
+
+  const project = await getProject(userId, position.projectId);
+  if (!project) return null;
+
+  return { position, project };
 }
 
 export async function deletePosition(
