@@ -51,14 +51,38 @@ export async function GET() {
     })
   );
 
-  const standalonePositions = standalone.map((position) => ({
-    ...position,
-    projectId: null,
-    projectName: "Unassigned",
-    baseCurrency: "EUR",
-  }));
+  const standalonePositions = standalone.map((position) => {
+    const computed = position.computed
+      ? {
+          fairValue: position.computed.fairValue,
+          intrinsicValue: position.computed.fairValue,
+          timeValue: 0,
+          delta: 0,
+          gamma: 0,
+          theta: 0,
+          vega: 0,
+          iv: undefined,
+          asOf: position.updatedAt,
+        }
+      : undefined;
 
-  return NextResponse.json({ positions: positions.flat().concat(standalonePositions) });
+    return {
+      ...position,
+      computed,
+      projectId: null,
+      projectName: "Unassigned",
+      baseCurrency: "EUR",
+    };
+  });
+
+  type ProjectPosition = (typeof positions)[number][number];
+  type StandalonePosition = (typeof standalonePositions)[number];
+  const combined: Array<ProjectPosition | StandalonePosition> = [
+    ...positions.flat(),
+    ...standalonePositions,
+  ];
+
+  return NextResponse.json({ positions: combined });
 }
 
 export async function POST(request: Request) {

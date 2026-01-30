@@ -566,7 +566,7 @@ export default function InvestmentsPage() {
       if (!response.ok || !payload || "error" in payload) {
         throw new Error(payload && "error" in payload ? payload.error : "Unable to add");
       }
-      const newInvestment = payload.investment;
+      const newInvestment = payload && "investment" in payload ? payload.investment : undefined;
       await loadInvestments();
       if (newInvestment) {
         setEditingCell({
@@ -608,7 +608,7 @@ export default function InvestmentsPage() {
       if (!response.ok || !payload || "error" in payload) {
         throw new Error(payload && "error" in payload ? payload.error : "Unable to add");
       }
-      const newPosition = payload.position;
+      const newPosition = payload && "position" in payload ? payload.position : undefined;
       await loadInvestments();
       if (newPosition) {
         setEditingCell({ table: "options", id: newPosition.id, field: "name" });
@@ -646,7 +646,7 @@ export default function InvestmentsPage() {
       if (!response.ok || !payload || "error" in payload) {
         throw new Error(payload && "error" in payload ? payload.error : "Unable to add");
       }
-      const newPosition = payload.position;
+      const newPosition = payload && "position" in payload ? payload.position : undefined;
       await loadInvestments();
       if (newPosition) {
         setEditingCell({ table: "crypto", id: newPosition.id, field: "name" });

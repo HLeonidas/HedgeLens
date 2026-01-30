@@ -9,7 +9,7 @@ import type {
   Optionschein,
   OptionscheinCreateInput,
   OptionscheinUpdateInput,
-} from "@/lib/optionschein/types";
+} from "@/lib/optionsschein/types";
 
 function optionscheinKey(id: string) {
   return `optionschein:${id}`;
@@ -56,18 +56,29 @@ export async function createOptionschein(userId: string, input: OptionscheinCrea
   const id = randomUUID();
   const normalized = normalizePosition(position);
 
-  const optionschein: Optionschein = {
+  const base = {
     id,
     ownerId: userId,
     instrument: parsed.data.instrument,
     pricingInputs: parsed.data.pricingInputs,
     computedSnapshot: parsed.data.computedSnapshot ?? null,
-    projectId: normalized.projectId,
-    entryPrice: normalized.entryPrice,
-    quantity: normalized.quantity,
     createdAt: now,
     updatedAt: now,
   };
+
+  const optionschein: Optionschein = normalized.projectId
+    ? {
+        ...base,
+        projectId: normalized.projectId,
+        entryPrice: normalized.entryPrice!,
+        quantity: normalized.quantity!,
+      }
+    : {
+        ...base,
+        projectId: null,
+        entryPrice: null,
+        quantity: null,
+      };
 
   await redis.set(optionscheinKey(id), optionschein);
   await redis.zadd(userOptionscheinKey(userId), {
@@ -150,7 +161,7 @@ export async function updateOptionschein(
   }
 
   const now = new Date().toISOString();
-  const updated: Optionschein = {
+  const updatedBase = {
     ...existing,
     ...parsed.data,
     id: existing.id,
@@ -161,12 +172,24 @@ export async function updateOptionschein(
       "computedSnapshot" in parsed.data
         ? parsed.data.computedSnapshot ?? null
         : existing.computedSnapshot ?? null,
-    projectId: nextProjectId,
-    entryPrice: nextEntryPrice,
-    quantity: nextQuantity,
     createdAt: existing.createdAt,
     updatedAt: now,
   };
+
+  const updated: Optionschein =
+    nextProjectId
+      ? {
+          ...updatedBase,
+          projectId: nextProjectId,
+          entryPrice: nextEntryPrice!,
+          quantity: nextQuantity!,
+        }
+      : {
+          ...updatedBase,
+          projectId: null,
+          entryPrice: null,
+          quantity: null,
+        };
 
   await redis.set(optionscheinKey(id), updated);
   await redis.zadd(userOptionscheinKey(userId), {

@@ -13,6 +13,23 @@ type Project = {
   color?: string | null;
   baseCurrency: string;
   riskProfile: "conservative" | "balanced" | "aggressive" | null;
+  tickerInfo?: {
+    source: "alpha_vantage";
+    symbol: string;
+    name?: string | null;
+    exchange?: string | null;
+    currency?: string | null;
+    sector?: string | null;
+    industry?: string | null;
+    description?: string | null;
+    marketCap?: string | null;
+    peRatio?: string | null;
+    dividendYield?: string | null;
+    latestTradingDay?: string | null;
+    price?: number | null;
+    changePercent?: string | null;
+  } | null;
+  tickerFetchedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -97,6 +114,8 @@ export default function ProjectDetailPage() {
   const [showDeleteProject, setShowDeleteProject] = useState(false);
   const [showDeletePosition, setShowDeletePosition] = useState(false);
   const [deletePositionTarget, setDeletePositionTarget] = useState<Position | null>(null);
+  const [tickerLoading, setTickerLoading] = useState(false);
+  const [tickerError, setTickerError] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editBaseCurrency, setEditBaseCurrency] = useState("");
@@ -174,6 +193,39 @@ export default function ProjectDetailPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load project";
       setError(message);
+    }
+  }
+
+  async function handleFetchTickerInfo() {
+    if (!projectId) return;
+    setTickerLoading(true);
+    setTickerError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/ticker`, { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as
+        | { tickerInfo?: Project["tickerInfo"]; fetchedAt?: string; error?: string }
+        | null;
+
+      if (!response.ok || !payload || payload.error) {
+        throw new Error(payload?.error ?? "Unable to fetch ticker info");
+      }
+
+      if (payload.tickerInfo) {
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                tickerInfo: payload.tickerInfo ?? null,
+                tickerFetchedAt: payload.fetchedAt ?? new Date().toISOString(),
+              }
+            : prev
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to fetch ticker info";
+      setTickerError(message);
+    } finally {
+      setTickerLoading(false);
     }
   }
   function resetPositionForm() {
@@ -502,6 +554,25 @@ export default function ProjectDetailPage() {
                     </span>
                   </p>
                 ) : null}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleFetchTickerInfo}
+                    disabled={!project.underlyingSymbol || tickerLoading}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-base">travel_explore</span>
+                    {tickerLoading ? "Lädt..." : "Ticker-Daten laden"}
+                  </button>
+                  {project.tickerFetchedAt ? (
+                    <span className="text-[11px] text-slate-400">
+                      Letztes Update: {new Date(project.tickerFetchedAt).toLocaleString()}
+                    </span>
+                  ) : null}
+                </div>
+                {tickerError ? (
+                  <p className="mt-2 text-xs text-rose-600">{tickerError}</p>
+                ) : null}
               </div>
             </div>
             <Menu as="div" className="relative inline-flex items-center">
@@ -550,6 +621,67 @@ export default function ProjectDetailPage() {
               </Menu.Items>
             </Menu>
           </div>
+
+          {project.tickerInfo ? (
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-bold uppercase text-slate-500">Ticker Overview</p>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {project.tickerInfo.name ?? project.tickerInfo.symbol} ·{" "}
+                  {project.tickerInfo.symbol}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {project.tickerInfo.exchange ?? "—"} ·{" "}
+                  {project.tickerInfo.currency ?? "—"}
+                </p>
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs text-slate-600">
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase text-slate-400">Price</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {project.tickerInfo.price !== null && project.tickerInfo.price !== undefined
+                      ? `${project.tickerInfo.price.toFixed(2)}`
+                      : "—"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {project.tickerInfo.changePercent ?? "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase text-slate-400">Market Cap</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {project.tickerInfo.marketCap ?? "—"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    PE {project.tickerInfo.peRatio ?? "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase text-slate-400">Sector</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {project.tickerInfo.sector ?? "—"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {project.tickerInfo.industry ?? "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase text-slate-400">Dividend</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {project.tickerInfo.dividendYield ?? "—"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Last Trade {project.tickerInfo.latestTradingDay ?? "—"}
+                  </p>
+                </div>
+              </div>
+              {project.tickerInfo.description ? (
+                <p className="mt-3 text-xs text-slate-500 line-clamp-3">
+                  {project.tickerInfo.description}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-surface-light border border-border-light p-4 rounded-xl">

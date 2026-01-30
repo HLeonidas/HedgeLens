@@ -1,0 +1,1426 @@
+
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Highcharts from "highcharts";
+
+import { InfoCallout } from "@/components/optionsschein-rechner/InfoCallout";
+import { KpiTilesRow } from "@/components/optionsschein-rechner/KpiTilesRow";
+import { ScenarioComparisonTable } from "@/components/optionsschein-rechner/ScenarioComparisonTable";
+
+const scenarioLimit = 5;
+
+type PositionItem = {
+  id: string;
+  projectId: string | null;
+  projectName: string;
+  baseCurrency: string;
+  name?: string;
+  isin: string;
+  side: "put" | "call";
+  size: number;
+  entryPrice: number;
+  pricingMode: "market" | "model";
+  underlyingSymbol?: string;
+  strike?: number;
+  expiry?: string;
+  ratio?: number;
+  underlyingPrice?: number;
+  volatility?: number;
+  rate?: number;
+  dividendYield?: number;
+  marketPrice?: number;
+  computed?: {
+    fairValue: number;
+    intrinsicValue: number;
+    timeValue: number;
+    delta: number;
+    gamma: number;
+    theta: number;
+    vega: number;
+    iv?: number;
+    asOf: string;
+  };
+};
+
+type LookupInstrument = {
+  isin: string;
+  name?: string;
+  type: "call" | "put";
+  strike: number;
+  expiry: string;
+  currency: string;
+  ratio?: number;
+  underlyingSymbol?: string;
+  price?: number;
+};
+
+type SelectedInstrument =
+  | { kind: "position"; data: PositionItem }
+  | { kind: "lookup"; data: LookupInstrument };
+
+type BaseInputs = {
+  underlyingPrice: number | "";
+  volatilityPct: number | "";
+  ratePct: number | "";
+  dividendYieldPct: number | "";
+  fxRate: number | "";
+  valuationDate: string;
+};
+
+type ScenarioRow = {
+  id: string;
+  name: string;
+  changePct: number | "";
+};
+
+type ScenarioResult = {
+  fairValue: number | null;
+  intrinsicValue: number | null;
+  timeValue: number | null;
+  delta: number | null;
+  gamma: number | null;
+  theta: number | null;
+  vega: number | null;
+  impliedVolatilityUsed: number | null;
+  breakEven: number | null;
+  premium: number | null;
+  omega: number | null;
+  absChange: number | null;
+  relChange: number | null;
+  currency: string;
+  valuationDate: string | null;
+};
+
+type CalculateResponse = {
+  referencePrice: number | null;
+  results: ScenarioResult[];
+};
+
+type PositionListResponse = {
+  positions: PositionItem[];
+};
+
+type LookupResponse = {
+  isin: string;
+  name?: string;
+  type: "call" | "put";
+  strike: number;
+  expiry: string;
+  currency: string;
+  ratio?: number;
+  underlying?: string;
+  price?: number;
+};
+
+type ProjectSummary = {
+  id: string;
+  name: string;
+  baseCurrency?: string;
+};
+
+type ProjectsResponse = {
+  projects: ProjectSummary[];
+};
+
+type OptionsscheinRechnerClientProps = {
+  initialInstrumentId?: string;
+};
+
+type TimeValuePoint = {
+  date: string;
+  fairValue: number | null;
+  intrinsicValue: number | null;
+  timeValue: number | null;
+};
+
+function createScenarioId() {
+  return `scenario-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createBaseInputs(): BaseInputs {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    underlyingPrice: "",
+    volatilityPct: "",
+    ratePct: "",
+    dividendYieldPct: "",
+    fxRate: "",
+    valuationDate: today,
+  };
+}
+
+function createBaselineScenario(): ScenarioRow {
+  return { id: createScenarioId(), name: "Status Quo", changePct: 0 };
+}
+
+function createScenarioRow(index: number): ScenarioRow {
+  return { id: createScenarioId(), name: `Scenario ${index}`, changePct: 5 };
+}
+
+function formatMaybe(value: number | null | undefined, digits = 2) {
+  if (value === null || value === undefined) return "—";
+  if (!Number.isFinite(value)) return "—";
+  return value.toFixed(digits);
+}
+
+function formatPercent(value: number | null | undefined, digits = 2) {
+  if (value === null || value === undefined) return "—";
+  if (!Number.isFinite(value)) return "—";
+  return `${value.toFixed(digits)}%`;
+}
+
+function formatCurrency(value: number | null | undefined, currency: string) {
+  if (value === null || value === undefined) return "—";
+  if (!Number.isFinite(value)) return "—";
+  return `${value.toFixed(2)} ${currency}`;
+}
+
+function buildCurveDates(startDate: string, endDate: string, points = 6) {
+  const start = Date.parse(startDate);
+  const end = Date.parse(endDate);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+  if (end <= start) return [startDate];
+  const steps = Math.max(2, points);
+  const stepMs = (end - start) / (steps - 1);
+  const dates = Array.from({ length: steps }, (_, index) => {
+    const date = new Date(start + stepMs * index);
+    return date.toISOString().slice(0, 10);
+  });
+  return Array.from(new Set(dates));
+}
+
+export function OptionsscheinRechnerClient({ initialInstrumentId }: OptionsscheinRechnerClientProps) {
+  const router = useRouter();
+
+  const [positions, setPositions] = useState<PositionItem[]>([]);
+  const [positionsLoaded, setPositionsLoaded] = useState(false);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [search, setSearch] = useState("");
+  const [selectedInstrument, setSelectedInstrument] = useState<SelectedInstrument | null>(null);
+  const [lookupValue, setLookupValue] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [baseInputs, setBaseInputs] = useState<BaseInputs>(() => createBaseInputs());
+  const [scenarios, setScenarios] = useState<ScenarioRow[]>(() => [createBaselineScenario()]);
+  const [results, setResults] = useState<ScenarioResult[]>([]);
+  const [referencePrice, setReferencePrice] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [projectSelection, setProjectSelection] = useState("");
+  const [entryPrice, setEntryPrice] = useState<number | "">("");
+  const [quantity, setQuantity] = useState<number | "">("");
+  const [timeValuePoints, setTimeValuePoints] = useState<TimeValuePoint[]>([]);
+  const [timeValueLoading, setTimeValueLoading] = useState(false);
+  const [timeValueError, setTimeValueError] = useState<string | null>(null);
+  const timeValueChartRef = useRef<HTMLDivElement | null>(null);
+  const chartInstanceRef = useRef<Highcharts.Chart | null>(null);
+  const [initialPending, setInitialPending] = useState(Boolean(initialInstrumentId));
+
+  const filteredPositions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return positions;
+    return positions.filter((position) => {
+      const text = `${position.isin} ${position.projectName} ${position.side} ${position.name ?? ""}`.toLowerCase();
+      return text.includes(query);
+    });
+  }, [positions, search]);
+
+  const statusQuoResult = results[0] ?? null;
+  const currency =
+    statusQuoResult?.currency ??
+    (selectedInstrument?.kind === "position"
+      ? selectedInstrument.data.baseCurrency
+      : selectedInstrument?.kind === "lookup"
+        ? selectedInstrument.data.currency
+        : "EUR");
+
+  const referenceDisplay =
+    referencePrice ??
+    (selectedInstrument?.kind === "position"
+      ? selectedInstrument.data.marketPrice ?? selectedInstrument.data.computed?.fairValue ?? null
+      : selectedInstrument?.kind === "lookup"
+        ? selectedInstrument.data.price ?? null
+        : null);
+
+  const baseUnderlying = baseInputs.underlyingPrice === "" ? null : Number(baseInputs.underlyingPrice);
+  const baseRate = baseInputs.ratePct === "" ? null : Number(baseInputs.ratePct) / 100;
+  const baseVol = baseInputs.volatilityPct === "" ? null : Number(baseInputs.volatilityPct) / 100;
+  const baseDividend = baseInputs.dividendYieldPct === "" ? null : Number(baseInputs.dividendYieldPct) / 100;
+  const baseFx = baseInputs.fxRate === "" ? null : Number(baseInputs.fxRate);
+  const expiryDate =
+    selectedInstrument?.kind === "position"
+      ? selectedInstrument.data.expiry ?? null
+      : selectedInstrument?.kind === "lookup"
+        ? selectedInstrument.data.expiry
+        : null;
+
+  const metricsSections = [
+    {
+      title: "Contract & Market",
+      items: [
+        {
+          label: "Basispreis",
+          value: selectedInstrument
+            ? formatMaybe(
+                selectedInstrument.kind === "position"
+                  ? selectedInstrument.data.strike
+                  : selectedInstrument.data.strike
+              )
+            : "—",
+        },
+        {
+          label: "Aufgeld",
+          value:
+            statusQuoResult?.premium === null || statusQuoResult?.premium === undefined
+              ? "—"
+              : formatPercent(statusQuoResult.premium * 100),
+        },
+        {
+          label: "Break-even",
+          value:
+            statusQuoResult?.breakEven === null || statusQuoResult?.breakEven === undefined
+              ? "—"
+              : formatMaybe(statusQuoResult.breakEven),
+        },
+        {
+          label: "Implizite Volatilität",
+          value:
+            statusQuoResult?.impliedVolatilityUsed !== null &&
+            statusQuoResult?.impliedVolatilityUsed !== undefined
+              ? formatPercent(statusQuoResult.impliedVolatilityUsed * 100)
+              : baseInputs.volatilityPct !== ""
+                ? formatPercent(Number(baseInputs.volatilityPct))
+                : "—",
+        },
+        { label: "Bewertungsstichtag", value: baseInputs.valuationDate || "—" },
+      ],
+    },
+    {
+      title: "Valuation",
+      items: [
+        { label: "Fairer Wert", value: formatCurrency(statusQuoResult?.fairValue, currency) },
+        {
+          label: "Intrinsischer Wert",
+          value: formatCurrency(statusQuoResult?.intrinsicValue, currency),
+        },
+        { label: "Zeitwert", value: formatCurrency(statusQuoResult?.timeValue, currency) },
+      ],
+    },
+    {
+      title: "Greeks",
+      items: [
+        { label: "Delta", value: formatMaybe(statusQuoResult?.delta, 4) },
+        { label: "Gamma", value: formatMaybe(statusQuoResult?.gamma, 4) },
+        { label: "Theta", value: formatMaybe(statusQuoResult?.theta, 4) },
+        { label: "Vega", value: formatMaybe(statusQuoResult?.vega, 4) },
+        { label: "Omega", value: formatMaybe(statusQuoResult?.omega, 4) },
+      ],
+    },
+  ];
+
+  const missingInputs = useMemo(() => {
+    if (!selectedInstrument) return [];
+    const missing: string[] = [];
+    if (baseInputs.underlyingPrice === "") missing.push("Basiswertkurs");
+    if (baseInputs.volatilityPct === "") missing.push("Volatilität");
+    if (baseInputs.ratePct === "") missing.push("Zinssatz");
+    if (!baseInputs.valuationDate) missing.push("Bewertungsstichtag");
+    return missing;
+  }, [baseInputs, selectedInstrument]);
+
+  const canCalculate = Boolean(selectedInstrument);
+
+  const canSaveProjectModel =
+    selectedInstrument?.kind === "position" &&
+    Boolean(selectedInstrument.data.projectId) &&
+    baseUnderlying !== null &&
+    baseVol !== null &&
+    baseRate !== null &&
+    selectedInstrument.data.strike &&
+    selectedInstrument.data.expiry;
+
+  const canAddToProject =
+    selectedInstrument?.kind === "lookup" &&
+    projectSelection &&
+    entryPrice !== "" &&
+    quantity !== "" &&
+    baseUnderlying !== null &&
+    baseVol !== null &&
+    baseRate !== null;
+
+  const resetScenarios = useCallback(() => {
+    setScenarios([createBaselineScenario()]);
+  }, []);
+
+  const hydrateInputs = useCallback(
+    (instrument: SelectedInstrument) => {
+      const today = new Date().toISOString().slice(0, 10);
+
+      if (instrument.kind === "position") {
+        const base = instrument.data;
+        setBaseInputs({
+          underlyingPrice: base.underlyingPrice ?? "",
+          ratePct: base.rate !== undefined ? Number((base.rate * 100).toFixed(4)) : "",
+          volatilityPct:
+            base.volatility !== undefined ? Number((base.volatility * 100).toFixed(4)) : "",
+          dividendYieldPct:
+            base.dividendYield !== undefined ? Number((base.dividendYield * 100).toFixed(4)) : "",
+          fxRate: "",
+          valuationDate: base.computed?.asOf?.slice(0, 10) ?? today,
+        });
+      } else {
+        setBaseInputs({
+          underlyingPrice: "",
+          ratePct: "",
+          volatilityPct: "",
+          dividendYieldPct: "",
+          fxRate: "",
+          valuationDate: today,
+        });
+      }
+
+      resetScenarios();
+      setResults([]);
+      setReferencePrice(null);
+      setError(null);
+      setSaveMessage(null);
+      setWarning(null);
+      setEntryPrice("");
+      setQuantity("");
+      setProjectSelection("");
+    },
+    [resetScenarios]
+  );
+
+  async function loadPositions() {
+    setError(null);
+    try {
+      const response = await fetch("/api/optionsschein/positions");
+      const data = (await response.json().catch(() => null)) as PositionListResponse | null;
+
+      if (!response.ok || !data) {
+        throw new Error("Positions konnten nicht geladen werden.");
+      }
+
+      setPositions(data.positions ?? []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Positions konnten nicht geladen werden.";
+      setError(message);
+    } finally {
+      setPositionsLoaded(true);
+    }
+  }
+
+  async function loadProjects() {
+    try {
+      const response = await fetch("/api/projects");
+      const data = (await response.json().catch(() => null)) as ProjectsResponse | null;
+      if (!response.ok || !data) return;
+      setProjects(data.projects ?? []);
+    } catch {
+      setProjects([]);
+    }
+  }
+
+  async function performLookup(isin: string, options?: { skipNav?: boolean }) {
+    setLookupLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/isin/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isin }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | LookupResponse
+        | { error?: string }
+        | null;
+
+      if (!response.ok || !payload || "error" in payload) {
+        throw new Error("ISIN lookup fehlgeschlagen.");
+      }
+
+      if (!("isin" in payload)) {
+        throw new Error("ISIN lookup fehlgeschlagen.");
+      }
+
+      const instrument: LookupInstrument = {
+        isin: payload.isin,
+        name: payload.name,
+        type: payload.type ?? "call",
+        strike: payload.strike,
+        expiry: payload.expiry,
+        currency: payload.currency ?? "EUR",
+        ratio: payload.ratio,
+        underlyingSymbol: payload.underlying,
+        price: payload.price,
+      };
+
+      setSelectedInstrument({ kind: "lookup", data: instrument });
+      hydrateInputs({ kind: "lookup", data: instrument });
+      if (!options?.skipNav) {
+        router.push(`/analysis/optionsschein-rechner/${encodeURIComponent(instrument.isin)}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "ISIN lookup fehlgeschlagen.";
+      setError(message);
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
+  function handlePositionSelect(position: PositionItem, options?: { skipNav?: boolean }) {
+    setSelectedInstrument({ kind: "position", data: position });
+    hydrateInputs({ kind: "position", data: position });
+    if (!options?.skipNav) {
+      router.push(`/analysis/optionsschein-rechner/${position.id}`);
+    }
+  }
+
+  async function handleLookup() {
+    if (!lookupValue.trim()) return;
+    await performLookup(lookupValue.trim());
+  }
+
+  const handleCalculate = useCallback(async () => {
+    if (!selectedInstrument) return;
+    setError(null);
+    setLoading(true);
+
+    try {
+      const payload = {
+        positionId: selectedInstrument.kind === "position" ? selectedInstrument.data.id : undefined,
+        instrument:
+          selectedInstrument.kind === "lookup"
+            ? {
+                isin: selectedInstrument.data.isin,
+                side: selectedInstrument.data.type,
+                strike: selectedInstrument.data.strike,
+                expiry: selectedInstrument.data.expiry,
+                ratio: selectedInstrument.data.ratio,
+                dividendYield: undefined,
+                currency: selectedInstrument.data.currency,
+                price: selectedInstrument.data.price,
+              }
+            : undefined,
+        scenarios: scenarios.map((scenario, index) => {
+          const changePct = index === 0 ? 0 : scenario.changePct === "" ? 0 : Number(scenario.changePct);
+          const underlyingPrice =
+            baseUnderlying !== null ? Number((baseUnderlying * (1 + changePct / 100)).toFixed(6)) : undefined;
+
+          return {
+            underlyingPrice,
+            rate: baseRate ?? undefined,
+            volatility: baseVol ?? undefined,
+            dividendYield: baseDividend ?? undefined,
+            fxRate: baseFx ?? undefined,
+            valuationDate: baseInputs.valuationDate || undefined,
+          };
+        }),
+      };
+
+      const response = await fetch("/api/optionsschein/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await response.json().catch(() => null)) as CalculateResponse | { error?: string } | null;
+
+      if (!response.ok || !data || "error" in data) {
+        throw new Error((data && "error" in data && data.error) || "Berechnung fehlgeschlagen.");
+      }
+
+      if (!("referencePrice" in data)) {
+        throw new Error("Berechnung fehlgeschlagen.");
+      }
+
+      setReferencePrice(data.referencePrice ?? null);
+      setResults(data.results ?? []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Berechnung fehlgeschlagen.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [baseDividend, baseFx, baseInputs.valuationDate, baseRate, baseUnderlying, baseVol, scenarios, selectedInstrument]);
+
+  async function handleSaveModelInputs() {
+    if (selectedInstrument?.kind !== "position") return;
+    if (!canSaveProjectModel) return;
+    if (!selectedInstrument.data.projectId) return;
+
+    setSaving(true);
+    setSaveMessage(null);
+    setError(null);
+
+    try {
+      const payload = {
+        pricingMode: "model",
+        underlyingPrice: baseUnderlying ?? undefined,
+        volatility: baseVol ?? undefined,
+        rate: baseRate ?? undefined,
+        dividendYield: baseDividend ?? undefined,
+      };
+
+      const response = await fetch(
+        `/api/projects/${selectedInstrument.data.projectId}/positions/${selectedInstrument.data.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = (await response.json().catch(() => null)) as
+        | { position?: PositionItem; error?: string }
+        | null;
+
+      if (!response.ok || !data || data.error) {
+        throw new Error(data?.error ?? "Speichern fehlgeschlagen.");
+      }
+
+      if (data.position) {
+        const nextPosition: PositionItem = {
+          ...data.position,
+          projectId: selectedInstrument.data.projectId,
+          projectName: selectedInstrument.data.projectName,
+          baseCurrency: selectedInstrument.data.baseCurrency,
+        };
+        setSelectedInstrument({ kind: "position", data: nextPosition });
+        setPositions((prev) => prev.map((item) => (item.id === nextPosition.id ? nextPosition : item)));
+      }
+
+      setSaveMessage("Modelldaten wurden gespeichert.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Speichern fehlgeschlagen.";
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddToProject() {
+    if (selectedInstrument?.kind !== "lookup") return;
+    if (!canAddToProject) return;
+
+    setSaving(true);
+    setSaveMessage(null);
+    setError(null);
+
+    try {
+      const payload = {
+        name: selectedInstrument.data.name ?? selectedInstrument.data.isin,
+        isin: selectedInstrument.data.isin,
+        side: selectedInstrument.data.type,
+        size: Number(quantity),
+        entryPrice: Number(entryPrice),
+        pricingMode: "model",
+        underlyingSymbol: selectedInstrument.data.underlyingSymbol,
+        underlyingPrice: baseUnderlying ?? undefined,
+        strike: selectedInstrument.data.strike,
+        expiry: selectedInstrument.data.expiry,
+        volatility: baseVol ?? undefined,
+        rate: baseRate ?? undefined,
+        dividendYield: baseDividend ?? undefined,
+        ratio: selectedInstrument.data.ratio,
+        marketPrice: selectedInstrument.data.price,
+      };
+
+      const response = await fetch(`/api/projects/${projectSelection}/positions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await response.json().catch(() => null)) as
+        | { position?: PositionItem; error?: string }
+        | null;
+
+      if (!response.ok || !data || data.error) {
+        throw new Error(data?.error ?? "Speichern fehlgeschlagen.");
+      }
+
+      const projectMeta = projects.find((project) => project.id === projectSelection);
+      const nextPosition: PositionItem = {
+        ...(data.position as PositionItem),
+        projectId: projectSelection,
+        projectName: projectMeta?.name ?? "Projekt",
+        baseCurrency: projectMeta?.baseCurrency ?? "EUR",
+      };
+
+      setPositions((prev) => [nextPosition, ...prev]);
+      setSelectedInstrument({ kind: "position", data: nextPosition });
+      router.push(`/analysis/optionsschein-rechner/${nextPosition.id}`);
+      setSaveMessage("Position wurde dem Projekt hinzugefügt.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Speichern fehlgeschlagen.";
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updateBaseInput(field: keyof BaseInputs, value: BaseInputs[keyof BaseInputs]) {
+    setBaseInputs((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateScenario(id: string, field: "name" | "changePct", value: string | number | "") {
+    setScenarios((prev) =>
+      prev.map((scenario) => (scenario.id === id ? { ...scenario, [field]: value } : scenario))
+    );
+  }
+
+  function handleRemoveScenario(id: string) {
+    setScenarios((prev) =>
+      prev.filter((scenario, index) => (index === 0 ? true : scenario.id !== id))
+    );
+  }
+
+  function handleAddScenario() {
+    setScenarios((prev) => {
+      if (prev.length >= scenarioLimit) return prev;
+      return [...prev, createScenarioRow(prev.length)];
+    });
+  }
+
+  function handleResetSelection() {
+    setSelectedInstrument(null);
+    setResults([]);
+    setReferencePrice(null);
+    setError(null);
+    setWarning(null);
+    setSaveMessage(null);
+    setLookupValue("");
+    setSearch("");
+    setBaseInputs(createBaseInputs());
+    resetScenarios();
+    router.push("/analysis/optionsschein-rechner");
+  }
+
+  useEffect(() => {
+    void loadPositions();
+  }, []);
+
+  useEffect(() => {
+    if (selectedInstrument?.kind === "lookup" && projects.length === 0) {
+      void loadProjects();
+    }
+  }, [projects.length, selectedInstrument]);
+
+  useEffect(() => {
+    if (!initialInstrumentId || selectedInstrument) return;
+    const isIsin = /^[A-Z0-9]{12}$/i.test(initialInstrumentId);
+    const match = positions.find((position) => position.id === initialInstrumentId);
+    if (match) {
+      handlePositionSelect(match, { skipNav: true });
+      setInitialPending(false);
+      return;
+    }
+    if (!positionsLoaded && !isIsin) return;
+    if (isIsin) {
+      setLookupValue(initialInstrumentId);
+      void (async () => {
+        await performLookup(initialInstrumentId, { skipNav: true });
+        setInitialPending(false);
+      })();
+    }
+  }, [initialInstrumentId, positions, positionsLoaded, selectedInstrument]);
+
+  useEffect(() => {
+    if (!initialInstrumentId || selectedInstrument) return;
+    const isIsin = /^[A-Z0-9]{12}$/i.test(initialInstrumentId);
+    if (isIsin || !positionsLoaded) return;
+    const match = positions.find((position) => position.id === initialInstrumentId);
+    if (!match) {
+      setError("Optionsschein konnte nicht geladen werden.");
+      setInitialPending(false);
+    }
+  }, [initialInstrumentId, positions, positionsLoaded, selectedInstrument]);
+
+  useEffect(() => {
+    if (!selectedInstrument) {
+      setWarning(null);
+      return;
+    }
+
+    if (selectedInstrument.kind === "position") {
+      const position = selectedInstrument.data;
+      const missing = [!position.strike && "Basispreis", !position.expiry && "Fälligkeit", !position.ratio && "Bezugsverhältnis"].filter(Boolean);
+
+      setWarning(missing.length ? `Fehlende Stammdaten: ${missing.join(", ")}.` : null);
+    } else {
+      setWarning(null);
+    }
+  }, [selectedInstrument]);
+
+  useEffect(() => {
+    if (!canCalculate) return;
+    const handle = window.setTimeout(() => {
+      void handleCalculate();
+    }, 450);
+
+    return () => window.clearTimeout(handle);
+  }, [baseInputs, canCalculate, handleCalculate, scenarios]);
+
+  useEffect(() => {
+    if (!timeValueChartRef.current) return;
+    if (timeValuePoints.length === 0) {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.destroy();
+        chartInstanceRef.current = null;
+      }
+      return;
+    }
+
+    const categories = timeValuePoints.map((point) => point.date);
+    const timeValueSeries = timeValuePoints.map((point) => point.timeValue);
+    const fairValueSeries = timeValuePoints.map((point) => point.fairValue);
+    const intrinsicSeries = timeValuePoints.map((point) => point.intrinsicValue);
+
+    const options: Highcharts.Options = {
+      chart: {
+        type: "line",
+        backgroundColor: "transparent",
+        height: 260,
+        spacing: [10, 10, 10, 10],
+      },
+      title: { text: undefined },
+      xAxis: {
+        categories,
+        tickmarkPlacement: "on",
+        lineColor: "#cbd5f5",
+        labels: { style: { color: "#64748b", fontSize: "11px" } },
+      },
+      yAxis: {
+        title: { text: undefined },
+        gridLineColor: "rgba(148, 163, 184, 0.2)",
+        labels: { style: { color: "#64748b", fontSize: "11px" } },
+      },
+      legend: {
+        itemStyle: { color: "#64748b", fontSize: "11px" },
+        itemHoverStyle: { color: "#0f172a" },
+      },
+      tooltip: {
+        shared: true,
+        valueDecimals: 2,
+        valueSuffix: ` ${currency}`,
+      },
+      series: [
+        {
+          type: "line",
+          name: "Zeitwert",
+          data: timeValueSeries,
+          color: "#0f172a",
+          lineWidth: 2,
+        },
+        {
+          type: "line",
+          name: "Fairer Wert",
+          data: fairValueSeries,
+          color: "#2563eb",
+          dashStyle: "ShortDash",
+        },
+        {
+          type: "line",
+          name: "Intrinsisch",
+          data: intrinsicSeries,
+          color: "#16a34a",
+          dashStyle: "Dot",
+        },
+      ],
+      credits: { enabled: false },
+    };
+
+    if (!chartInstanceRef.current) {
+      chartInstanceRef.current = Highcharts.chart(timeValueChartRef.current, options);
+    } else {
+      chartInstanceRef.current.update(options, true, true);
+    }
+  }, [currency, timeValuePoints]);
+
+  useEffect(() => {
+    return () => {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.destroy();
+        chartInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedInstrument) {
+      setTimeValuePoints([]);
+      setTimeValueError(null);
+      return;
+    }
+    if (!expiryDate || !baseInputs.valuationDate) {
+      setTimeValuePoints([]);
+      setTimeValueError(null);
+      return;
+    }
+    if (baseUnderlying === null || baseVol === null || baseRate === null) {
+      setTimeValuePoints([]);
+      setTimeValueError(null);
+      return;
+    }
+
+    const dates = buildCurveDates(baseInputs.valuationDate, expiryDate, 6);
+    if (dates.length === 0) {
+      setTimeValuePoints([]);
+      setTimeValueError("Ungültige Laufzeitdaten.");
+      return;
+    }
+    if (Date.parse(expiryDate) <= Date.parse(baseInputs.valuationDate)) {
+      setTimeValuePoints([]);
+      setTimeValueError("Fälligkeit liegt vor dem Bewertungsstichtag.");
+      return;
+    }
+
+    const handle = window.setTimeout(async () => {
+      setTimeValueLoading(true);
+      setTimeValueError(null);
+      try {
+        const payload = {
+          positionId:
+            selectedInstrument.kind === "position" ? selectedInstrument.data.id : undefined,
+          instrument:
+            selectedInstrument.kind === "lookup"
+              ? {
+                  isin: selectedInstrument.data.isin,
+                  side: selectedInstrument.data.type,
+                  strike: selectedInstrument.data.strike,
+                  expiry: selectedInstrument.data.expiry,
+                  ratio: selectedInstrument.data.ratio,
+                  dividendYield: undefined,
+                  currency: selectedInstrument.data.currency,
+                  price: selectedInstrument.data.price,
+                }
+              : undefined,
+          scenarios: dates.map((date) => ({
+            underlyingPrice: baseUnderlying,
+            rate: baseRate ?? undefined,
+            volatility: baseVol ?? undefined,
+            dividendYield: baseDividend ?? undefined,
+            fxRate: baseFx ?? undefined,
+            valuationDate: date,
+          })),
+        };
+
+        const response = await fetch("/api/optionsschein/calculate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = (await response.json().catch(() => null)) as
+          | CalculateResponse
+          | { error?: string }
+          | null;
+
+        if (!response.ok || !data || "error" in data) {
+          throw new Error(
+            (data && "error" in data && data.error) || "Zeitwert-Simulation fehlgeschlagen."
+          );
+        }
+
+        if (!("results" in data)) {
+          throw new Error("Zeitwert-Simulation fehlgeschlagen.");
+        }
+
+        const points = data.results.map((result, index) => ({
+          date: dates[index] ?? baseInputs.valuationDate,
+          fairValue: result.fairValue ?? null,
+          intrinsicValue: result.intrinsicValue ?? null,
+          timeValue: result.timeValue ?? null,
+        }));
+
+        setTimeValuePoints(points);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Zeitwert-Simulation fehlgeschlagen.";
+        setTimeValueError(message);
+      } finally {
+        setTimeValueLoading(false);
+      }
+    }, 600);
+
+    return () => window.clearTimeout(handle);
+  }, [
+    baseDividend,
+    baseFx,
+    baseInputs.valuationDate,
+    baseRate,
+    baseUnderlying,
+    baseVol,
+    expiryDate,
+    selectedInstrument,
+  ]);
+  const isResolvingInitial = initialPending && !selectedInstrument;
+
+  if (!selectedInstrument) {
+    return (
+      <div className="h-full overflow-y-auto custom-scrollbar bg-background-light dark:bg-background-dark p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              Optionsschein-Rechner
+            </h1>
+            <p className="text-sm text-slate-500">
+              Szenariobasierte Bewertung von Optionsscheinen mit Greeks, Break-even und
+              Preisreaktion.
+            </p>
+          </div>
+
+          {isResolvingInitial ? (
+            <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+              <div className="flex items-center gap-3 text-sm text-slate-500">
+                <span className="material-symbols-outlined text-base">hourglass_empty</span>
+                Lädt Optionsschein-Daten...
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+            <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                    Aus Projekt auswählen
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Wähle eine bestehende Optionsschein-Position für die Analyse.
+                  </p>
+                </div>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="ISIN oder Projekt suchen"
+                  className="rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm focus:outline-none"
+                />
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="text-xs uppercase text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Projekt</th>
+                      <th className="px-3 py-2 text-left">Name</th>
+                      <th className="px-3 py-2 text-left">ISIN</th>
+                      <th className="px-3 py-2 text-left">Typ</th>
+                      <th className="px-3 py-2 text-left">Strike</th>
+                      <th className="px-3 py-2 text-left">Fälligkeit</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
+                    {filteredPositions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-6 text-center text-xs text-slate-500">
+                          Keine Optionsschein-Positionen gefunden.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPositions.map((position) => (
+                        <tr key={position.id} className="hover:bg-slate-50/70">
+                          <td className="px-3 py-3 text-slate-500">{position.projectName}</td>
+                          <td className="px-3 py-3 text-slate-700">
+                            {position.name ?? "—"}
+                          </td>
+                          <td className="px-3 py-3 text-slate-700">{position.isin}</td>
+                          <td className="px-3 py-3 text-slate-500">
+                            {position.side.toUpperCase()}
+                          </td>
+                          <td className="px-3 py-3 text-slate-500">
+                            {position.strike ? position.strike.toFixed(2) : "—"}
+                          </td>
+                          <td className="px-3 py-3 text-slate-500">{position.expiry ?? "—"}</td>
+                          <td className="px-3 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handlePositionSelect(position)}
+                              className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+                            >
+                              Öffnen
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                ISIN manuell eingeben
+              </h2>
+              <p className="text-xs text-slate-500 mt-2">
+                Ad-hoc Analyse ohne Projektzuordnung. Die Daten werden nicht gespeichert.
+              </p>
+              <div className="mt-4 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                <label className="text-xs font-bold uppercase text-slate-500">ISIN</label>
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2">
+                  <span className="material-symbols-outlined text-base text-slate-400">search</span>
+                  <input
+                    value={lookupValue}
+                    onChange={(event) => setLookupValue(event.target.value)}
+                    placeholder="DE000... oder ISIN"
+                    className="w-full bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLookup}
+                  disabled={lookupLoading}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  <span className="material-symbols-outlined text-base">travel_explore</span>
+                  {lookupLoading ? "Suche läuft..." : "ISIN analysieren"}
+                </button>
+              </div>
+            </div>
+          </div>
+          )}
+
+          {error ? (
+            <div className="rounded-lg border border-red-200/70 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-y-auto custom-scrollbar bg-background-light dark:bg-background-dark p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              Optionsschein-Rechner
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Analysemodus:{" "}
+              {selectedInstrument.kind === "position"
+                ? selectedInstrument.data.projectId
+                  ? "Projekt"
+                  : "Standalone"
+                : "Ad-hoc"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleResetSelection}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+          >
+            <span className="material-symbols-outlined text-base">swap_horiz</span>
+            Instrument wechseln
+          </button>
+        </div>
+        <div className="grid gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-xs text-slate-600">
+          {selectedInstrument.kind === "position" ? (
+            <>
+              <div>
+                <span className="font-semibold text-slate-700">{selectedInstrument.data.isin}</span>
+                <span className="text-slate-400"> · {selectedInstrument.data.projectName}</span>
+              </div>
+              <div>
+                {selectedInstrument.data.side.toUpperCase()} · Strike{" "}
+                {selectedInstrument.data.strike ?? "—"} · Fälligkeit{" "}
+                {selectedInstrument.data.expiry ?? "—"}
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <span className="font-semibold text-slate-700">
+                  {selectedInstrument.data.name ?? selectedInstrument.data.isin}
+                </span>
+              </div>
+              <div>
+                {selectedInstrument.data.type.toUpperCase()} · Strike {selectedInstrument.data.strike} ·
+                Fälligkeit {selectedInstrument.data.expiry}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+          <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
+            Referenzkurs: {referenceDisplay === null ? "—" : referenceDisplay.toFixed(4)} {currency}
+          </span>
+          {loading ? (
+            <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
+              Berechnung läuft...
+            </span>
+          ) : null}
+        </div>
+
+        <KpiTilesRow sections={metricsSections} />
+
+        <details className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm" open>
+          <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+            Details & Modellparameter
+          </summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="text-xs font-semibold text-slate-500">
+              Basiswertkurs
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={baseInputs.underlyingPrice}
+                onChange={(event) =>
+                  updateBaseInput(
+                    "underlyingPrice",
+                    event.target.value === "" ? "" : Number(event.target.value)
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-xs font-semibold text-slate-500">
+              Volatilität (%)
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={baseInputs.volatilityPct}
+                onChange={(event) =>
+                  updateBaseInput(
+                    "volatilityPct",
+                    event.target.value === "" ? "" : Number(event.target.value)
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-xs font-semibold text-slate-500">
+              Risikofreier Zins (%)
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={baseInputs.ratePct}
+                onChange={(event) =>
+                  updateBaseInput(
+                    "ratePct",
+                    event.target.value === "" ? "" : Number(event.target.value)
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-xs font-semibold text-slate-500">
+              Dividendenrendite (%)
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={baseInputs.dividendYieldPct}
+                onChange={(event) =>
+                  updateBaseInput(
+                    "dividendYieldPct",
+                    event.target.value === "" ? "" : Number(event.target.value)
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-xs font-semibold text-slate-500">
+              FX-Rate (optional)
+              <input
+                type="number"
+                min={0}
+                step={0.0001}
+                value={baseInputs.fxRate}
+                onChange={(event) =>
+                  updateBaseInput(
+                    "fxRate",
+                    event.target.value === "" ? "" : Number(event.target.value)
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-xs font-semibold text-slate-500">
+              Bewertungsstichtag
+              <input
+                type="date"
+                value={baseInputs.valuationDate}
+                onChange={(event) => updateBaseInput("valuationDate", event.target.value)}
+                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+              />
+            </label>
+          </div>
+          {missingInputs.length > 0 ? (
+            <div className="mt-4 rounded-lg border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Fehlende Eingaben: {missingInputs.join(", ")}.
+            </div>
+          ) : null}
+        </details>
+
+        <ScenarioComparisonTable
+          scenarios={scenarios}
+          results={results}
+          currency={currency}
+          referencePrice={referenceDisplay}
+          baseUnderlyingPrice={baseUnderlying}
+          onScenarioChange={updateScenario}
+          onRemoveScenario={handleRemoveScenario}
+          onAddScenario={handleAddScenario}
+          maxScenarios={scenarioLimit}
+        />
+        {selectedInstrument.kind === "position" ? (
+          <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                  Modellwerte speichern
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Änderungen werden im Projekt hinterlegt und beim nächsten Öffnen geladen.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveModelInputs}
+                disabled={!canSaveProjectModel || saving}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-base">save</span>
+                {saving ? "Speichern..." : "Änderungen sichern"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                Ad-hoc in Projekt übernehmen
+              </h3>
+              <p className="text-xs text-slate-500">
+                Speichere die analysierte ISIN als Projektposition (Kaufpreis &amp; Stückzahl
+                erforderlich).
+              </p>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <label className="text-xs font-semibold text-slate-500">
+                Zielprojekt
+                <select
+                  value={projectSelection}
+                  onChange={(event) => setProjectSelection(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <option value="">Projekt wählen</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-500">
+                Buy-in Preis
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={entryPrice}
+                  onChange={(event) =>
+                    setEntryPrice(event.target.value === "" ? "" : Number(event.target.value))
+                  }
+                  className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-500">
+                Stückzahl
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={quantity}
+                  onChange={(event) =>
+                    setQuantity(event.target.value === "" ? "" : Number(event.target.value))
+                  }
+                  className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
+                />
+              </label>
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleAddToProject}
+                disabled={!canAddToProject || saving}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-base">library_add</span>
+                {saving ? "Speichern..." : "Zu Projekt hinzufügen"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {warning ? (
+          <div className="rounded-lg border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            {warning}
+          </div>
+        ) : null}
+        {saveMessage ? (
+          <div className="rounded-lg border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            {saveMessage}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="rounded-lg border border-red-200/70 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                Zeitwert bis Laufzeitende
+              </h3>
+              <p className="text-xs text-slate-500">
+                Simulation des Zeitwertverlaufs bis {expiryDate ?? "Fälligkeit"}.
+              </p>
+            </div>
+            {timeValueLoading ? (
+              <span className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-[11px] font-semibold text-slate-500">
+                Simulation läuft...
+              </span>
+            ) : null}
+          </div>
+
+          {timeValueError ? (
+            <div className="mt-4 rounded-lg border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              {timeValueError}
+            </div>
+          ) : null}
+
+          {timeValuePoints.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-slate-200/70 bg-white px-3 py-8 text-center text-xs text-slate-500">
+              Keine Zeitwert-Simulation verfügbar.
+            </div>
+          ) : (
+            <div className="mt-4 rounded-lg border border-slate-200/70 bg-white p-3">
+              <div ref={timeValueChartRef} />
+            </div>
+          )}
+        </div>
+
+        <InfoCallout
+          title="Hinweis zur Berechnung"
+          description="Modellwerte sind Näherungen und können von Emittentenpreisen abweichen. Besonders der Zeitwertverlust (Theta) wirkt sich in längeren Zeiträumen stark aus."
+        />
+      </div>
+    </div>
+  );
+}

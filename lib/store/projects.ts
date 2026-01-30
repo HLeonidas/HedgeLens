@@ -13,8 +13,27 @@ export type Project = {
   color?: string | null;
   baseCurrency: string;
   riskProfile: "conservative" | "balanced" | "aggressive" | null;
+  tickerInfo?: TickerInfo | null;
+  tickerFetchedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TickerInfo = {
+  source: "alpha_vantage";
+  symbol: string;
+  name?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  sector?: string | null;
+  industry?: string | null;
+  description?: string | null;
+  marketCap?: string | null;
+  peRatio?: string | null;
+  dividendYield?: string | null;
+  latestTradingDay?: string | null;
+  price?: number | null;
+  changePercent?: string | null;
 };
 
 export type Position = {
@@ -193,6 +212,8 @@ export async function createProject(
     color: input.color ?? null,
     baseCurrency: input.baseCurrency ?? "EUR",
     riskProfile: input.riskProfile ?? null,
+    tickerInfo: null,
+    tickerFetchedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -238,6 +259,31 @@ export async function updateProject(
   await redis.set(projectKey(projectId), updated);
   await redis.zadd(userProjectsKey(userId), {
     score: Date.parse(now),
+    member: projectId,
+  });
+
+  return updated;
+}
+
+export async function updateProjectTicker(
+  userId: string,
+  projectId: string,
+  payload: { tickerInfo: TickerInfo; fetchedAt: string }
+) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const updated: Project = {
+    ...project,
+    tickerInfo: payload.tickerInfo,
+    tickerFetchedAt: payload.fetchedAt,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await redis.set(projectKey(projectId), updated);
+  await redis.zadd(userProjectsKey(userId), {
+    score: Date.parse(updated.updatedAt),
     member: projectId,
   });
 
