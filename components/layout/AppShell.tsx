@@ -17,6 +17,7 @@ type AppShellProps = {
 
 export function AppShell({ children, user }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   function toggleSidebar() {
     setIsSidebarOpen((value) => !value);
@@ -26,10 +27,23 @@ export function AppShell({ children, user }: AppShellProps) {
     setIsSidebarOpen(false);
   }
 
+  function toggleSidebarCollapse() {
+    setIsSidebarCollapsed((value) => !value);
+  }
+
   return (
     <div className="relative flex min-h-screen lg:h-screen flex-col lg:flex-row overflow-hidden bg-background-light text-slate-900">
-      <MobileNav isOpen={isSidebarOpen} onClose={closeSidebar}>
-        <Sidebar onNavClick={closeSidebar} user={user} />
+      <MobileNav
+        isOpen={isSidebarOpen}
+        onClose={closeSidebar}
+        isCollapsed={isSidebarCollapsed}
+      >
+        <Sidebar
+          onNavClick={closeSidebar}
+          onToggleCollapse={toggleSidebarCollapse}
+          isCollapsed={isSidebarCollapsed}
+          user={user}
+        />
       </MobileNav>
 
       <main className="flex-1 flex flex-col min-h-0 bg-white overflow-hidden">

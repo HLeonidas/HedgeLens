@@ -56,20 +56,6 @@ If you created an Upstash Redis database via Vercel, use the steps below to conn
 3. **Run the app**
    - `npm run dev`
 
-## Next Steps (Workflow)
-1. Auth setup
-   - Confirm `.env.local` values are present and valid.
-   - Verify GitHub OAuth callback URL points to `http://localhost:3000/api/auth/callback/github` in dev.
-2. Database bootstrap
-   - Run initial migration for `users` (must include `active` flag).
-   - Ensure a DB client is available in `lib/` for server-only usage.
-3. Security gating (required)
-   - Add middleware or route guards that block access when `user.active = false`.
-   - Apply the same check to API routes and page routes.
-4. Account provisioning
-   - On first login, upsert a `users` record with `active = true` by default.
-   - Store provider ID + email to avoid duplicate accounts.
-
 ## Security
 - Add a server-side guard that checks `users.active` on every page and API request. If inactive, deny access.
 - On login, create (or update) the user record in Postgres so every authenticated user has an account row.

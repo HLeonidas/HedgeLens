@@ -43,6 +43,9 @@ export async function upsertUserFromOAuth(input: {
   const existingId = await redis.get<string>(emailKey);
   const id = existingId ?? randomUUID();
 
+  const existingUser = existingId ? await getStoredUser(id, redis) : null;
+  const createdAt = existingUser?.created_at ?? now.toISOString();
+  const active = existingUser?.active ?? false;
   const user: StoredUser = {
     id,
     email: input.email,
@@ -50,13 +53,14 @@ export async function upsertUserFromOAuth(input: {
     image: input.image ?? null,
     provider: input.provider ?? null,
     provider_account_id: input.providerAccountId ?? null,
-    active: true,
-    created_at: existingId ? (await getStoredUser(id, redis))?.created_at ?? now.toISOString() : now.toISOString(),
+    active,
+    created_at: createdAt,
     updated_at: now.toISOString(),
   };
 
   await redis.set(`user:${id}`, user);
   await redis.set(emailKey, id);
+  await redis.zadd("users:all", { score: new Date(createdAt).getTime(), member: id });
 
   return user;
 }

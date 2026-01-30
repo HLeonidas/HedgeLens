@@ -6,8 +6,8 @@ export default function InactivePage() {
           Account inactive
         </h1>
         <p className="mt-3 text-sm text-slate-500">
-          Your account is currently disabled. Please contact an administrator to
-          reactivate access.
+          Your account is currently inactive. An administrator must activate
+          your access before you can use HedgeLens.
         </p>
       </div>
     </main>
