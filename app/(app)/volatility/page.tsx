@@ -3,8 +3,8 @@ export default function VolatilityPage() {
     <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">Volatility Surface</h2>
-          <p className="text-sm text-slate-500">Slice implied volatility by tenor and strike.</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Volatility Surface</h2>
+          <p className="text-sm text-slate-500 mt-1">Slice implied volatility by tenor and strike.</p>
         </div>
         <button className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">
           Run Surface

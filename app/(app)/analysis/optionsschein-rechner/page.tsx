@@ -496,10 +496,10 @@ export default function OptionsscheinRechnerPage() {
             <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+                  <h1 className="text-3xl font-black text-slate-900 tracking-tight">
                     Optionsschein-Rechner
                   </h1>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 mt-1">
                     Professional warrant valuation and scenario analysis tool based on Black-Scholes.
                   </p>
                 </div>

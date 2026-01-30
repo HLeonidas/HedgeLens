@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireApiUser } from "@/lib/auth-guard";
-import { getProject, listPositions } from "@/lib/store/projects";
+import { deleteProject, getProject, listPositions } from "@/lib/store/projects";
 
 export const runtime = "nodejs";
 
@@ -62,4 +62,20 @@ export async function GET(
   const valueSummary = computeValueSummary(positions);
 
   return NextResponse.json({ project, positions, ratioSummary, valueSummary });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const guard = await requireApiUser();
+  if ("response" in guard) return guard.response;
+
+  const resolvedParams = await params;
+  const success = await deleteProject(guard.user.id, resolvedParams.id);
+  if (!success) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
 }

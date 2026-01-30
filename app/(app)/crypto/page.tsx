@@ -3,8 +3,8 @@ export default function CryptoPage() {
     <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">Crypto Portfolio</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Crypto Portfolio</h2>
+          <p className="text-sm text-slate-500 mt-1">
             Track crypto positions with target prices and performance.
           </p>
         </div>

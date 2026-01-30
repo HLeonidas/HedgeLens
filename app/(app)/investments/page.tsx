@@ -712,8 +712,8 @@ export default function InvestmentsPage() {
     <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">Investments</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Investments</h2>
+          <p className="text-sm text-slate-500 mt-1">
             Track buy-in, shares, and expected targets.
           </p>
         </div>

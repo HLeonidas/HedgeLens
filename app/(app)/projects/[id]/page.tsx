@@ -299,8 +299,8 @@ export default function ProjectDetailPage() {
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-black text-slate-900">{project.name}</h2>
-        <div className="text-sm text-slate-500">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">{project.name}</h2>
+        <div className="text-sm text-slate-500 mt-1">
           Base {project.baseCurrency}
           {project.riskProfile ? ` · ${project.riskProfile}` : ""}
         </div>

@@ -3,8 +3,8 @@ export default function PutCallPage() {
     <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">Put-Call Ratio</h2>
-          <p className="text-sm text-slate-500">Monitor sentiment shifts and ratio alerts.</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Put-Call Ratio</h2>
+          <p className="text-sm text-slate-500 mt-1">Monitor sentiment shifts and ratio alerts.</p>
         </div>
         <div className="flex gap-2">
           <button className="px-3 py-2 rounded-lg border border-border-light text-xs font-bold text-slate-600">

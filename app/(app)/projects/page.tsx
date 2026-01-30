@@ -48,9 +48,11 @@ export default function ProjectsPage() {
   const [riskProfile, setRiskProfile] = useState<"" | "conservative" | "balanced" | "aggressive">("");
   const [search, setSearch] = useState("");
   const [currencyFilter, setCurrencyFilter] = useState("all");
-  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
-  const [showCreate, setShowCreate] = useState(false);
+	const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
+	const [showCreate, setShowCreate] = useState(false);
   const [description, setDescription] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
 	const canCreate = useMemo(() => Boolean(name.trim()), [name]);
 
@@ -220,13 +222,28 @@ export default function ProjectsPage() {
 		router.push(`/projects/${projectId}`);
 	}
 
+  async function handleDeleteProject(projectId: string) {
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Unable to delete project");
+      }
+      setDeleteTarget(null);
+      await loadProjects();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to delete project";
+      setListError(message);
+    }
+  }
+
 	return (
 		<div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
 			<div className="max-w-7xl mx-auto flex flex-col gap-6">
 				<div className="flex flex-col gap-4">
 					<div>
-						<h2 className="text-2xl font-black text-slate-900">Projects</h2>
-						<p className="text-sm text-slate-500">
+						<h2 className="text-3xl font-black text-slate-900 tracking-tight">Projects</h2>
+						<p className="text-sm text-slate-500 mt-1">
 							Strategy containers for put/call warrants, ratios, and analytics.
 						</p>
 					</div>
@@ -234,19 +251,19 @@ export default function ProjectsPage() {
 					<div className="rounded-2xl border border-border-light bg-white shadow-sm p-4 flex flex-col gap-4">
 						<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 							<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-								<div className="flex items-center gap-2 rounded-lg border border-border-light px-3 py-2 text-xs text-slate-500 bg-slate-50">
-									<span className="material-symbols-outlined text-sm">search</span>
+								<div className="flex items-center gap-2 rounded-lg border border-border-light px-4 py-3 text-sm text-slate-500 bg-slate-50">
+									<span className="material-symbols-outlined text-base">search</span>
 									<input
 										value={search}
 										onChange={(event) => setSearch(event.target.value)}
 										placeholder="Search projects..."
-										className="w-full bg-transparent outline-none text-slate-700 text-xs font-semibold"
+										className="w-full bg-transparent outline-none text-slate-700 text-sm font-semibold"
 									/>
 								</div>
 								<select
 									value={currencyFilter}
 									onChange={(event) => setCurrencyFilter(event.target.value)}
-									className="rounded-lg border border-border-light px-3 py-2 text-xs font-semibold text-slate-600 bg-white"
+									className="rounded-lg border border-border-light px-4 py-3 text-sm font-semibold text-slate-600 bg-white"
 								>
 									{currencyOptions.map((currency) => (
 										<option key={currency} value={currency}>
@@ -257,7 +274,7 @@ export default function ProjectsPage() {
 								<select
 									value={riskFilter}
 									onChange={(event) => setRiskFilter(event.target.value as RiskFilter)}
-									className="rounded-lg border border-border-light px-3 py-2 text-xs font-semibold text-slate-600 bg-white"
+									className="rounded-lg border border-border-light px-4 py-3 text-sm font-semibold text-slate-600 bg-white"
 								>
 									{riskProfileOptions.map((risk) => (
 										<option key={risk} value={risk}>
@@ -269,17 +286,20 @@ export default function ProjectsPage() {
 							<div className="flex items-center gap-2">
 								<button
 									type="button"
-									onClick={() => setShowCreate((prev) => !prev)}
-									className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold"
-								>
-									{showCreate ? "Close" : "Create Project"}
-								</button>
-							</div>
+								onClick={() => setShowCreate((prev) => !prev)}
+								className="px-5 py-3 rounded-lg bg-primary hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
+							>
+								{showCreate ? "Close" : "Create Project"}
+							</button>
+						</div>
 						</div>
 					</div>
 				</div>
 
-				<div className="rounded-2xl border border-border-light bg-white shadow-sm">
+						<div
+							className="rounded-2xl border border-border-light bg-white shadow-sm"
+							onClick={() => setOpenMenuId(null)}
+						>
 				{listError ? (
 					<div className="rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-rose-700">
 						{listError}
@@ -309,10 +329,10 @@ export default function ProjectsPage() {
 					</div>
         ) : (
           <div className="rounded-xl border border-border-light overflow-hidden bg-white">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full min-w-[980px] text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-border-light">
+                  <tr className="text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-border-light">
                     <th className="px-6 py-4">Projektname</th>
                     <th className="px-6 py-4">Basiswährung</th>
                     <th className="px-6 py-4">Risikoprofil</th>
@@ -323,12 +343,13 @@ export default function ProjectsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-light">
-                  {filteredProjects.map((project) => {
+                  {filteredProjects.map((project, index) => {
                     const riskBadge = getRiskBadge(project.riskProfile);
                     const ratio = ratiosById[project.id] ?? null;
                     const positions = positionsById[project.id] ?? 0;
                     const iconMeta = riskIcon(project.riskProfile);
                     const colorMeta = projectColor(project.id);
+                    const isLastRow = index === filteredProjects.length - 1;
                     return (
                       <tr
                         key={project.id}
@@ -363,7 +384,18 @@ export default function ProjectsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm font-medium text-slate-700 uppercase">
-                          {project.baseCurrency}
+                          <span className="inline-flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base text-slate-400">
+                              {project.baseCurrency.toUpperCase() === "EUR"
+                                ? "euro"
+                                : project.baseCurrency.toUpperCase() === "USD"
+                                  ? "attach_money"
+                                  : project.baseCurrency.toUpperCase() === "GBP"
+                                    ? "currency_pound"
+                                    : "payments"}
+                            </span>
+                            {project.baseCurrency}
+                          </span>
                         </td>
                         <td className="px-6 py-4">
                           <span
@@ -400,15 +432,43 @@ export default function ProjectsPage() {
                           {new Date(project.updatedAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={(event) => event.stopPropagation()}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-slate-200 rounded transition-all"
-                          >
-                            <span className="material-symbols-outlined text-lg text-slate-500">
-                              more_vert
-                            </span>
-                          </button>
+                          <div className="relative inline-flex items-center">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenMenuId((prev) => (prev === project.id ? null : project.id));
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-slate-200 rounded transition-all"
+                            >
+                              <span className="material-symbols-outlined text-lg text-slate-500">
+                                more_vert
+                              </span>
+                            </button>
+                            {openMenuId === project.id ? (
+                              <div
+                                className={[
+                                  "absolute right-0 z-10 w-44 rounded-lg border border-border-light bg-white shadow-lg overflow-hidden",
+                                  isLastRow ? "bottom-10" : "top-8",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    setDeleteTarget(project);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                                >
+                                  <span className="material-symbols-outlined text-base">delete</span>
+                                  Delete project
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -450,12 +510,19 @@ export default function ProjectsPage() {
         onClick={() => setShowCreate(false)}
       />
       <div
-        className={`fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out border-l border-border-light flex flex-col ${
-          showCreate ? "translate-x-0" : "translate-x-full"
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showCreate ? "" : "pointer-events-none"
         }`}
+        onClick={() => setShowCreate(false)}
         aria-hidden={!showCreate}
       >
-        <div className="p-6 border-b border-border-light flex items-center justify-between">
+        <div
+          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out flex flex-col ${
+            showCreate ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold">Neues Projekt erstellen</h2>
             <p className="text-xs text-slate-500">Konfigurieren Sie Ihr Portfolio-Tracking</p>
@@ -476,7 +543,7 @@ export default function ProjectsPage() {
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-border-light px-3 py-2 text-sm bg-slate-50"
+              className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
               placeholder="z.B. Mein erstes Projekt"
             />
           </div>
@@ -488,7 +555,7 @@ export default function ProjectsPage() {
               <input
                 value={baseCurrency}
                 onChange={(event) => setBaseCurrency(event.target.value)}
-                className="w-full rounded-lg border border-border-light px-3 py-2 text-sm bg-slate-50 uppercase"
+                className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
                 placeholder="EUR"
               />
             </div>
@@ -503,7 +570,7 @@ export default function ProjectsPage() {
                     event.target.value as "" | "conservative" | "balanced" | "aggressive"
                   )
                 }
-                className="w-full rounded-lg border border-border-light px-3 py-2 text-sm bg-slate-50"
+                className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
               >
                 <option value="">Custom</option>
                 <option value="conservative">Konservativ</option>
@@ -519,7 +586,7 @@ export default function ProjectsPage() {
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-lg border border-border-light px-3 py-2 text-sm bg-slate-50"
+              className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
               rows={4}
               placeholder="Ziele und Strategie für dieses Projekt..."
             />
@@ -535,11 +602,11 @@ export default function ProjectsPage() {
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </div>
-        <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3">
+        <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
           <button
             type="button"
             onClick={() => setShowCreate(false)}
-            className="flex-1 px-4 py-2 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
           >
             Abbrechen
           </button>
@@ -547,10 +614,69 @@ export default function ProjectsPage() {
             type="button"
             onClick={handleCreateProject}
             disabled={!canCreate || loading}
-            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+            className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
           >
             {loading ? "Erstellen..." : "Projekt erstellen"}
           </button>
+        </div>
+        </div>
+      </div>
+
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 ${
+          deleteTarget ? "" : "hidden"
+        }`}
+        onClick={() => setDeleteTarget(null)}
+      />
+      <div
+        className={`fixed inset-0 z-[60] flex items-center justify-center px-4 ${
+          deleteTarget ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setDeleteTarget(null)}
+        aria-hidden={!deleteTarget}
+      >
+        <div
+          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            deleteTarget ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">warning</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Projekt löschen</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Diese Aktion kann nicht rückgängig gemacht werden.
+              </p>
+            </div>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-slate-600">
+              Möchten Sie das Projekt{" "}
+              <span className="font-semibold text-slate-900">
+                {deleteTarget?.name ?? "dieses Projekt"}
+              </span>{" "}
+              wirklich löschen? Alle Positionen werden entfernt.
+            </p>
+          </div>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteTarget?.id && handleDeleteProject(deleteTarget.id)}
+              className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
+            >
+              Projekt löschen
+            </button>
+          </div>
         </div>
       </div>
     </div>

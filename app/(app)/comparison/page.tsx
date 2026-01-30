@@ -7,7 +7,7 @@ export default function ComparisonPage() {
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
               Dual-Curve Overlay
             </h2>
-            <p className="text-slate-500 text-base font-normal">
+            <p className="text-sm text-slate-500 mt-1">
               Comparative decay of time-value between two selected strike prices
             </p>
           </div>

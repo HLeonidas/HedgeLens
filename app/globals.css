@@ -52,3 +52,9 @@ body {
   background: #cbd5e1;
   border-radius: 10px;
 }
+
+.sidebar-item-active {
+  background-color: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  border-right: 3px solid #2563eb;
+}

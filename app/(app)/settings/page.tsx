@@ -99,8 +99,8 @@ export default function SettingsPage() {
     <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">Settings</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Settings</h2>
+          <p className="text-sm text-slate-500 mt-1">
             Manage your account, team permissions, and active sessions.
           </p>
         </div>

@@ -66,6 +66,16 @@ function userProjectsKey(userId: string) {
   return `user:${userId}:projects`;
 }
 
+async function deleteProjectPositions(redis: ReturnType<typeof getRedis>, projectId: string) {
+  const ids = await redis.zrange<string[]>(projectPositionsKey(projectId), 0, 1000, {
+    rev: false,
+  });
+  if (!ids || ids.length === 0) return;
+
+  await Promise.all(ids.map((id) => redis.del(positionKey(id))));
+  await redis.del(projectPositionsKey(projectId));
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -352,6 +362,18 @@ export async function deletePosition(
 
   const positions = await listPositions(projectId);
   await updateProjectRiskProfile(redis, updatedProject, positions);
+
+  return true;
+}
+
+export async function deleteProject(userId: string, projectId: string) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return false;
+
+  await deleteProjectPositions(redis, projectId);
+  await redis.del(projectKey(projectId));
+  await redis.zrem(userProjectsKey(userId), projectId);
 
   return true;
 }

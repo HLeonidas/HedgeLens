@@ -37,8 +37,8 @@ export default function ChartsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Charts</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Charts</h1>
+        <p className="text-sm text-slate-500 mt-1">
           Placeholder Highcharts demo to validate client rendering.
         </p>
       </div>
