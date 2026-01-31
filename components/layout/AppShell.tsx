@@ -64,8 +64,8 @@ export function AppShell({ children, user }: AppShellProps) {
 				<Header onToggleSidebar={toggleSidebar} />
 
 				<div className="flex-1 overflow-y-auto">
-					{/* IMPORTANT: make this relative so overlay only covers content - style 100vh-75px */}
-					<div className="relative w-full mx-auto p-4 sm:p-6 lg:p-8" style={{ minHeight: "calc(100vh - 75px)" }}>
+					{/* IMPORTANT: make this relative so overlay only covers content */}
+					<div className="relative w-full mx-auto p-3 sm:p-6 lg:p-8 min-h-[calc(100vh-64px)] sm:min-h-[calc(100vh-75px)]">
 						{children}
 
 						{isUnderConstruction && (

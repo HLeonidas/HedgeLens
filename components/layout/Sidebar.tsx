@@ -38,7 +38,7 @@ export function Sidebar({ onNavClick, user }: SidebarProps) {
 	];
 
 	return (
-		<aside className="w-64 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hidden lg:flex flex-col sticky top-0 h-screen">
+		<aside className="w-64 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen">
 			<div className="p-6 flex items-center gap-3">
 				<div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-white">
 					<span className="material-symbols-outlined text-sm">insights</span>

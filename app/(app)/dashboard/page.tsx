@@ -5,112 +5,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { HighchartsClient } from "@/components/charts/HighchartsClient";
-
-type Project = {
-	id: string;
-	name: string;
-	description?: string | null;
-	underlyingSymbol?: string | null;
-	color?: string | null;
-	baseCurrency: string;
-	riskProfile: "conservative" | "balanced" | "aggressive" | null;
-	underlyingLastPrice?: number | null;
-	underlyingLastPriceUpdatedAt?: string | null;
-	underlyingLastPriceCurrency?: string | null;
-	createdAt: string;
-	updatedAt: string;
-};
-
-type PositionComputed = {
-	fairValue: number;
-	intrinsicValue: number;
-	timeValue: number;
-	asOf: string;
-};
-
-type TimeValuePoint = { day: number; value: number };
-
-type Position = {
-	id: string;
-	projectId: string;
-	name?: string;
-	isin: string;
-	side: "put" | "call" | "spot";
-	currency?: string;
-	size: number;
-	entryPrice: number;
-	pricingMode?: "market" | "model";
-	underlyingSymbol?: string;
-	underlyingPrice?: number;
-	strike?: number;
-	expiry?: string;
-	volatility?: number;
-	rate?: number;
-	dividendYield?: number;
-	ratio?: number;
-	marketPrice?: number;
-	computed?: PositionComputed;
-	timeValueCurve?: TimeValuePoint[];
-	createdAt: string;
-	updatedAt?: string;
-};
-
-type RatioSummary = {
-	totalPuts: number;
-	totalCalls: number;
-	ratio: number | null;
-};
-
-type ValueSummary = {
-	totalMarketValue: number;
-	totalIntrinsicValue: number;
-	totalTimeValue: number;
-};
-
-type ProjectsResponse = {
-	projects: Project[];
-};
-
-type ProjectDetailResponse = {
-	project: Project;
-	positions: Position[];
-	ratioSummary: RatioSummary;
-	valueSummary: ValueSummary;
-};
-
-type ProjectHighlight = {
-	id: string;
-	name: string;
-	positions: number;
-	ratio: number | null;
-	marketValue: number;
-	riskProfile: Project["riskProfile"];
-	baseCurrency: string;
-	color?: string | null;
-	underlyingSymbol?: string | null;
-	lastPrice?: number | null;
-	updatedAt: string;
-};
-
-type AggregatedDashboard = {
-	totals: {
-		projects: number;
-		positions: number;
-		marketValue: number;
-		intrinsicValue: number;
-		timeValue: number;
-	};
-	ratio: { puts: number; calls: number; value: number | null };
-	exposuresByCurrency: Array<{ currency: string; value: number }>;
-	stalePriceProjects: Array<{ id: string; name: string; ageDays: number | null }>;
-	missingPositionsProjects: Array<{ id: string; name: string }>;
-	ratioAlerts: Array<{ id: string; name: string; ratio: number }>;
-	depressedRatioAlerts: Array<{ id: string; name: string; ratio: number }>;
-	modelRefreshQueue: Array<{ projectName: string; position: string; ageHours: number | null }>;
-	trendSeries: Array<[number, number]>;
-	highlights: ProjectHighlight[];
-	recentActivity: ProjectHighlight[];
-};
+import {
+	AggregatedDashboard,
+	DashboardResponse,
+	MODEL_REFRESH_HOURS,
+	ProjectHighlight,
+} from "@/types/dashboard";
 
 type NextAction = {
 	title: string;
@@ -127,9 +27,6 @@ type DashboardSignal = {
 	icon: string;
 };
 
-const STALE_PRICE_DAYS = 3;
-const MODEL_REFRESH_HOURS = 24;
-
 const accentPalette = [
 	"bg-blue-500",
 	"bg-emerald-500",
@@ -139,13 +36,35 @@ const accentPalette = [
 	"bg-sky-500",
 ];
 
+function withMassiveProxy(url: string) {
+	try {
+		return `/api/massive/logo?url=${encodeURIComponent(url)}`;
+	} catch {
+		return url;
+	}
+}
+
+const emptyAggregates: AggregatedDashboard = {
+	totals: { projects: 0, positions: 0, marketValue: 0, intrinsicValue: 0, timeValue: 0 },
+	ratio: { puts: 0, calls: 0, value: null },
+	exposuresByCurrency: [],
+	stalePriceProjects: [],
+	missingPositionsProjects: [],
+	ratioAlerts: [],
+	depressedRatioAlerts: [],
+	modelRefreshQueue: [],
+	trendSeries: [],
+	highlights: [],
+	recentActivity: [],
+};
+
 export default function DashboardPage() {
-	const [projects, setProjects] = useState<Project[]>([]);
-	const [projectDetails, setProjectDetails] = useState<ProjectDetailResponse[]>([]);
+	const [aggregated, setAggregated] = useState<AggregatedDashboard>(emptyAggregates);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [warning, setWarning] = useState<string | null>(null);
 	const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+	const [preferredCurrency, setPreferredCurrency] = useState("EUR");
 
 	const loadDashboard = useCallback(async () => {
 		setIsLoading(true);
@@ -153,46 +72,17 @@ export default function DashboardPage() {
 		setWarning(null);
 
 		try {
-			const response = await fetch("/api/projects", { cache: "no-store" });
-			if (!response.ok) throw new Error("Unable to load projects");
+			const response = await fetch("/api/dashboard", { cache: "no-store" });
+			if (!response.ok) throw new Error("Unable to load dashboard analytics");
 
-			const payload = (await response.json()) as ProjectsResponse;
-			const fetchedProjects = payload.projects ?? [];
-			setProjects(fetchedProjects);
-
-			if (fetchedProjects.length === 0) {
-				setProjectDetails([]);
-				setLastRefreshedAt(new Date());
-				return;
-			}
-
-			const detailResults = await Promise.allSettled(
-				fetchedProjects.map(async (project) => {
-					const detailResponse = await fetch(`/api/projects/${project.id}`, { cache: "no-store" });
-					if (!detailResponse.ok) throw new Error("Unable to load project analytics");
-					return (await detailResponse.json()) as ProjectDetailResponse;
-				})
-			);
-
-			const successfulDetails = detailResults
-				.filter(
-					(entry): entry is PromiseFulfilledResult<ProjectDetailResponse> =>
-						entry.status === "fulfilled"
-				)
-				.map((entry) => entry.value);
-
-			if (successfulDetails.length === 0) throw new Error("Unable to load dashboard analytics");
-
-			const failedCount = detailResults.length - successfulDetails.length;
-			if (failedCount > 0) {
-				setWarning(`Failed to load ${failedCount} ${failedCount === 1 ? "project" : "projects"}.`);
-			}
-
-			setProjectDetails(successfulDetails);
-			setLastRefreshedAt(new Date());
+			const payload = (await response.json()) as DashboardResponse;
+			setAggregated(payload.aggregated ?? emptyAggregates);
+			setPreferredCurrency(payload.preferredCurrency ?? "EUR");
+			setWarning(payload.warnings?.[0] ?? null);
+			setLastRefreshedAt(payload.generatedAt ? new Date(payload.generatedAt) : new Date());
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Unable to load dashboard data";
-			setProjectDetails([]);
+			setAggregated(emptyAggregates);
 			setError(message);
 		} finally {
 			setIsLoading(false);
@@ -203,11 +93,10 @@ export default function DashboardPage() {
 		void loadDashboard();
 	}, [loadDashboard]);
 
-	const aggregated = useMemo(() => computeAggregates(projectDetails), [projectDetails]);
-	const hasProjects = projects.length > 0;
+	const hasProjects = aggregated.totals.projects > 0;
 	const hasAnalytics = aggregated.totals.projects > 0;
 
-	const baseCurrency = aggregated.highlights[0]?.baseCurrency ?? "EUR";
+	const baseCurrency = preferredCurrency;
 	const hasTrend = aggregated.trendSeries.length > 1;
 	const trendFirst = aggregated.trendSeries[0]?.[1] ?? 0;
 	const trendLast = aggregated.trendSeries[aggregated.trendSeries.length - 1]?.[1] ?? 0;
@@ -363,7 +252,7 @@ export default function DashboardPage() {
 	}, [aggregated]);
 
 	return (
-		<div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
+		<div className="h-full overflow-y-auto custom-scrollbar p-3 sm:p-6 lg:p-8">
 			<div className="max-w-7xl mx-auto flex flex-col gap-6">
 				{/* Header */}
 				<div className="flex flex-col gap-4">
@@ -496,7 +385,7 @@ export default function DashboardPage() {
 							<KpiCard
 								label="Market Value"
 								value={formatCurrency(aggregated.totals.marketValue, baseCurrency)}
-								subtitle="approx. sum by currency"
+								subtitle={`converted to ${baseCurrency}`}
 							/>
 							<KpiCard
 								label="Time Value"
@@ -551,6 +440,7 @@ export default function DashboardPage() {
 										{aggregated.highlights.slice(0, 5).map((highlight) => {
 											const accent = getProjectAccent(highlight.id, highlight.color);
 											const badge = getRiskBadge(highlight.riskProfile);
+											const logoUrl = highlight.logoUrl?.trim() || null;
 											return (
 												<Link
 													key={highlight.id}
@@ -558,7 +448,18 @@ export default function DashboardPage() {
 													className="flex items-center justify-between gap-4 py-4 transition hover:bg-slate-50 px-2 rounded-lg"
 												>
 													<div className="flex items-center gap-3">
-														<span className={`h-9 w-9 rounded-full ${accent.className ?? ""}`} style={accent.style} />
+														<div
+															className={`h-9 w-9 rounded-full overflow-hidden flex items-center justify-center ${logoUrl ? "" : accent.className ?? ""}`}
+															style={logoUrl ? undefined : accent.style}
+														>
+															{logoUrl ? (
+																<img
+																	src={withMassiveProxy(logoUrl)}
+																	alt={highlight.name}
+																	className="h-full w-full object-contain"
+																/>
+															) : null}
+														</div>
 														<div>
 															<div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
 																{highlight.name}
@@ -571,8 +472,11 @@ export default function DashboardPage() {
 															<div className="text-xs text-slate-500 mt-1">
 																{highlight.positions} position{highlight.positions === 1 ? "" : "s"} ·{" "}
 																{highlight.lastPrice != null
-																	? `${formatCurrency(highlight.lastPrice, highlight.baseCurrency)} last`
-																	: "no price"}
+																	? `Underlying ${formatCurrency(
+																			highlight.lastPrice,
+																			highlight.lastPriceCurrency ?? highlight.baseCurrency
+																	  )}`
+																	: "No underlying price"}
 															</div>
 														</div>
 													</div>
@@ -753,7 +657,7 @@ function formatRelativeTime(iso: string) {
 	return `${d}d ago`;
 }
 
-function getRiskBadge(profile: Project["riskProfile"]) {
+function getRiskBadge(profile: ProjectHighlight["riskProfile"]) {
 	if (!profile) return { label: "Custom", classes: "bg-slate-100 text-slate-600" };
 	if (profile === "conservative") return { label: "Conservative", classes: "bg-emerald-100 text-emerald-700" };
 	if (profile === "balanced") return { label: "Balanced", classes: "bg-sky-100 text-sky-700" };
@@ -772,165 +676,4 @@ function signalSeverityTone(severity: DashboardSignal["severity"]) {
 	if (severity === "alert") return "bg-rose-100 text-rose-700";
 	if (severity === "warn") return "bg-amber-100 text-amber-700";
 	return "bg-slate-100 text-slate-600";
-}
-
-/** -------- aggregation logic -------- */
-
-function computeAggregates(details: ProjectDetailResponse[]): AggregatedDashboard {
-	const result: AggregatedDashboard = {
-		totals: { projects: details.length, positions: 0, marketValue: 0, intrinsicValue: 0, timeValue: 0 },
-		ratio: { puts: 0, calls: 0, value: null },
-		exposuresByCurrency: [],
-		stalePriceProjects: [],
-		missingPositionsProjects: [],
-		ratioAlerts: [],
-		depressedRatioAlerts: [],
-		modelRefreshQueue: [],
-		trendSeries: [],
-		highlights: [],
-		recentActivity: [],
-	};
-
-	if (!details.length) return result;
-
-	const exposures = new Map<string, number>();
-	const trend = new Map<number, number>();
-
-	const stalePriceMs = STALE_PRICE_DAYS * 24 * 60 * 60 * 1000;
-	const modelRefreshMs = MODEL_REFRESH_HOURS * 60 * 60 * 1000;
-	const now = Date.now();
-
-	let totalPositions = 0;
-	let totalMarketValue = 0;
-	let totalIntrinsicValue = 0;
-	let totalTimeValue = 0;
-	let totalPuts = 0;
-	let totalCalls = 0;
-
-	for (const detail of details) {
-		const ratioSummary = detail.ratioSummary ?? { totalPuts: 0, totalCalls: 0, ratio: null };
-		totalPuts += ratioSummary.totalPuts;
-		totalCalls += ratioSummary.totalCalls;
-
-		totalMarketValue += detail.valueSummary?.totalMarketValue ?? 0;
-		totalIntrinsicValue += detail.valueSummary?.totalIntrinsicValue ?? 0;
-		totalTimeValue += detail.valueSummary?.totalTimeValue ?? 0;
-
-		totalPositions += detail.positions.length;
-
-		if (ratioSummary.ratio !== null) {
-			if (ratioSummary.ratio >= 1.2) {
-				result.ratioAlerts.push({ id: detail.project.id, name: detail.project.name, ratio: ratioSummary.ratio });
-			} else if (ratioSummary.ratio <= 0.8) {
-				result.depressedRatioAlerts.push({ id: detail.project.id, name: detail.project.name, ratio: ratioSummary.ratio });
-			}
-		}
-
-		if (!detail.positions.length) {
-			result.missingPositionsProjects.push({ id: detail.project.id, name: detail.project.name });
-		}
-
-		const priceStamp = detail.project.underlyingLastPriceUpdatedAt ? Date.parse(detail.project.underlyingLastPriceUpdatedAt) : NaN;
-		if (!Number.isFinite(priceStamp) || now - priceStamp > stalePriceMs) {
-			const ageDays = Number.isFinite(priceStamp) ? Math.round((now - priceStamp) / (24 * 60 * 60 * 1000)) : null;
-			result.stalePriceProjects.push({ id: detail.project.id, name: detail.project.name, ageDays });
-		}
-
-		for (const position of detail.positions) {
-			const exposureValue = resolvePositionValue(detail, position);
-			if (exposureValue !== null) {
-				const currency = resolvePositionCurrency(detail, position);
-				exposures.set(currency, (exposures.get(currency) ?? 0) + exposureValue);
-			}
-
-			if (position.pricingMode === "model") {
-				const stamp = position.computed?.asOf ? Date.parse(position.computed.asOf) : NaN;
-				if (!Number.isFinite(stamp) || now - stamp > modelRefreshMs) {
-					const ageHours = Number.isFinite(stamp) ? Math.round((now - stamp) / (60 * 60 * 1000)) : null;
-					result.modelRefreshQueue.push({
-						projectName: detail.project.name,
-						position: position.name ?? position.isin,
-						ageHours,
-					});
-				}
-			}
-
-			if (position.timeValueCurve?.length) {
-				const multiplier = position.size * (position.ratio ?? 1);
-				for (const point of position.timeValueCurve) {
-					trend.set(point.day, (trend.get(point.day) ?? 0) + point.value * multiplier);
-				}
-			}
-		}
-
-		result.highlights.push({
-			id: detail.project.id,
-			name: detail.project.name,
-			positions: detail.positions.length,
-			ratio: ratioSummary.ratio ?? null,
-			marketValue: detail.valueSummary?.totalMarketValue ?? 0,
-			riskProfile: detail.project.riskProfile,
-			baseCurrency: detail.project.baseCurrency,
-			color: detail.project.color ?? null,
-			underlyingSymbol: detail.project.underlyingSymbol ?? null,
-			lastPrice: detail.project.underlyingLastPrice ?? null,
-			updatedAt: detail.project.updatedAt,
-		});
-	}
-
-	result.totals = {
-		projects: details.length,
-		positions: totalPositions,
-		marketValue: totalMarketValue,
-		intrinsicValue: totalIntrinsicValue,
-		timeValue: totalTimeValue,
-	};
-
-	result.ratio = {
-		puts: totalPuts,
-		calls: totalCalls,
-		value: totalCalls > 0 ? totalPuts / totalCalls : null,
-	};
-
-	result.exposuresByCurrency = Array.from(exposures.entries())
-		.map(([currency, value]) => ({ currency, value }))
-		.sort((a, b) => b.value - a.value);
-
-	result.trendSeries = Array.from(trend.entries())
-		.sort((a, b) => a[0] - b[0])
-		.map(([day, value]) => [day, Number(value.toFixed(2))]);
-
-	result.highlights.sort((a, b) => b.marketValue - a.marketValue);
-	result.recentActivity = [...result.highlights]
-		.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-		.slice(0, 10);
-
-	return result;
-}
-
-/**
- * You likely already have a canonical logic in your backend.
- * This is a safe placeholder:
- * - spot: size * marketPrice (or entryPrice)
- * - put/call: size * (marketPrice or computed.fairValue) * ratio
- */
-function resolvePositionValue(detail: ProjectDetailResponse, position: Position): number | null {
-	const ratio = position.ratio ?? 1;
-
-	// Prefer computed/model fair value if exists, else market price, else entry price.
-	const unit =
-		position.computed?.fairValue ??
-		position.marketPrice ??
-		position.entryPrice ??
-		null;
-
-	if (unit == null || !Number.isFinite(unit)) return null;
-
-	const value = position.size * unit * (position.side === "spot" ? 1 : ratio);
-	if (!Number.isFinite(value)) return null;
-	return value;
-}
-
-function resolvePositionCurrency(detail: ProjectDetailResponse, position: Position): string {
-	return (position.currency || detail.project.baseCurrency || "EUR").toUpperCase();
 }
