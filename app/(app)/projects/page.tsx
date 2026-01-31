@@ -11,6 +11,9 @@ type Project = {
 	riskProfile: "conservative" | "balanced" | "aggressive" | null;
 	underlyingSymbol?: string | null;
 	color?: string | null;
+  underlyingLastPrice?: number | null;
+  underlyingLastPriceUpdatedAt?: string | null;
+  underlyingLastPriceCurrency?: string | null;
   massiveTickerInfo?: {
     source: "massive";
     symbol: string;
@@ -279,6 +282,18 @@ export default function ProjectsPage() {
     }
   }
 
+  function formatPrice(value?: number | null) {
+    if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+    return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
+  }
+
+  function formatDate(value?: string | null) {
+    if (!value) return "—";
+    const parsed = Date.parse(value);
+    if (!Number.isFinite(parsed)) return "—";
+    return new Date(parsed).toLocaleDateString();
+  }
+
 	function handleRowClick(projectId: string) {
 		router.push(`/projects/${projectId}`);
 	}
@@ -377,7 +392,7 @@ export default function ProjectsPage() {
                 <thead>
                   <tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
                     <th className="px-6 py-4">Projektname</th>
-                    <th className="px-6 py-4">Basiswährung</th>
+                    <th className="px-6 py-4">Letzter Preis</th>
                     <th className="px-6 py-4">Risikoprofil</th>
                     <th className="px-6 py-4">Put/Call Ratio</th>
                     <th className="px-6 py-4">Positionen</th>
@@ -447,19 +462,18 @@ export default function ProjectsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700 uppercase">
-                          <span className="inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-base text-slate-400">
-                              {project.baseCurrency.toUpperCase() === "EUR"
-                                ? "euro"
-                                : project.baseCurrency.toUpperCase() === "USD"
-                                  ? "attach_money"
-                                  : project.baseCurrency.toUpperCase() === "GBP"
-                                    ? "currency_pound"
-                                    : "payments"}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-slate-700">
+                              {formatPrice(project.underlyingLastPrice)}{" "}
+                              <span className="text-xs text-slate-400 uppercase">
+                                {project.baseCurrency?.toUpperCase()}
+                              </span>
                             </span>
-                            {project.baseCurrency}
-                          </span>
+                            <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+                              {formatDate(project.underlyingLastPriceUpdatedAt)}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span

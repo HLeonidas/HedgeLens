@@ -15,6 +15,14 @@ type UserRow = {
   updated_at: string;
 };
 
+type ExchangeRate = {
+  from: string;
+  to: string;
+  rate: number;
+  fetchedAt: string;
+  source: "alpha_vantage" | "manual";
+};
+
 export default function SettingsPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [page, setPage] = useState(1);
@@ -28,6 +36,10 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [fxRate, setFxRate] = useState<ExchangeRate | null>(null);
+  const [fxLoading, setFxLoading] = useState(false);
+  const [fxError, setFxError] = useState<string | null>(null);
+  const [manualRate, setManualRate] = useState<number | "">("");
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -89,10 +101,87 @@ export default function SettingsPage() {
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    async function loadFx() {
+      setFxLoading(true);
+      setFxError(null);
+      try {
+        const response = await fetch("/api/exchange-rate?from=EUR&to=USD");
+        const payload = (await response.json().catch(() => null)) as
+          | { rate?: ExchangeRate; error?: string }
+          | null;
+        if (!response.ok || !payload?.rate) {
+          throw new Error(payload?.error ?? "Failed to load FX rate");
+        }
+        if (!ignore) {
+          setFxRate(payload.rate);
+          setManualRate(payload.rate.rate);
+        }
+      } catch (err) {
+        if (!ignore) setFxError(err instanceof Error ? err.message : "Failed to load FX rate");
+      } finally {
+        if (!ignore) setFxLoading(false);
+      }
+    }
+
+    void loadFx();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   function handleThemeChange(nextTheme: "light" | "dark") {
     setTheme(nextTheme);
     localStorage.setItem("theme", nextTheme);
     document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }
+
+  async function handleRefreshFx() {
+    setFxLoading(true);
+    setFxError(null);
+    try {
+      const response = await fetch("/api/exchange-rate?from=EUR&to=USD&force=1");
+      const payload = (await response.json().catch(() => null)) as
+        | { rate?: ExchangeRate; error?: string }
+        | null;
+      if (!response.ok || !payload?.rate) {
+        throw new Error(payload?.error ?? "Failed to refresh FX rate");
+      }
+      setFxRate(payload.rate);
+      setManualRate(payload.rate.rate);
+    } catch (err) {
+      setFxError(err instanceof Error ? err.message : "Failed to refresh FX rate");
+    } finally {
+      setFxLoading(false);
+    }
+  }
+
+  async function handleManualFx() {
+    if (manualRate === "" || !Number.isFinite(Number(manualRate))) {
+      setFxError("Invalid rate");
+      return;
+    }
+    setFxLoading(true);
+    setFxError(null);
+    try {
+      const response = await fetch("/api/exchange-rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "EUR", to: "USD", rate: Number(manualRate) }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { rate?: ExchangeRate; error?: string }
+        | null;
+      if (!response.ok || !payload?.rate) {
+        throw new Error(payload?.error ?? "Failed to update FX rate");
+      }
+      setFxRate(payload.rate);
+    } catch (err) {
+      setFxError(err instanceof Error ? err.message : "Failed to update FX rate");
+    } finally {
+      setFxLoading(false);
+    }
   }
 
   return (
@@ -140,6 +229,73 @@ export default function SettingsPage() {
               Dark
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+              Exchange Rates
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 font-semibold">
+              Cached for 48h · EUR/USD
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRefreshFx}
+              disabled={fxLoading}
+              className="px-4 py-2 rounded-lg border border-border-light text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {fxLoading ? "Lädt..." : "Aktualisieren"}
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-border-light bg-slate-50 p-4">
+            <p className="text-xs uppercase text-slate-500 font-semibold">EUR → USD</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {fxRate ? fxRate.rate.toFixed(6) : "—"}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {fxRate
+                ? `Stand: ${new Date(fxRate.fetchedAt).toLocaleString()} · ${fxRate.source}`
+                : "Kein Kurs geladen"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border-light bg-slate-50 p-4">
+            <p className="text-xs uppercase text-slate-500 font-semibold">USD → EUR</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {fxRate ? (1 / fxRate.rate).toFixed(6) : "—"}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">Berechnet aus EUR/USD</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col">
+            <label className="text-xs font-bold uppercase text-slate-500">Manuell setzen</label>
+            <input
+              type="number"
+              min={0}
+              step={0.0001}
+              value={manualRate}
+              onChange={(event) =>
+                setManualRate(event.target.value === "" ? "" : Number(event.target.value))
+              }
+              className="mt-2 w-48 rounded-lg border border-border-light px-4 py-2 text-sm bg-slate-50"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleManualFx}
+            disabled={fxLoading}
+            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 disabled:opacity-60"
+          >
+            Manuell speichern
+          </button>
+          {fxError ? <p className="text-xs text-rose-600">{fxError}</p> : null}
         </div>
       </div>
 

@@ -13,10 +13,18 @@ export type Project = {
   color?: string | null;
   baseCurrency: string;
   riskProfile: "conservative" | "balanced" | "aggressive" | null;
+  underlyingLastPrice?: number | null;
+  underlyingLastPriceUpdatedAt?: string | null;
+  underlyingLastPriceSource?: "alpha_quote" | "massive_prev" | "manual" | null;
+  underlyingLastPriceCurrency?: string | null;
   tickerInfo?: TickerInfo | null;
   tickerFetchedAt?: string | null;
   massiveTickerInfo?: MassiveTickerInfo | null;
   massiveTickerFetchedAt?: string | null;
+  massiveMarketInfo?: MassiveMarketInfo | null;
+  massiveMarketFetchedAt?: string | null;
+  massivePrevBarInfo?: MassivePrevBarInfo | null;
+  massivePrevBarFetchedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -34,12 +42,26 @@ export type MassiveTickerInfo = {
   payload: Record<string, unknown>;
 };
 
+export type MassiveMarketInfo = {
+  source: "massive";
+  symbol: string;
+  payload: Record<string, unknown>;
+  market: "stocks" | "crypto";
+};
+
+export type MassivePrevBarInfo = {
+  source: "massive";
+  symbol: string;
+  payload: Record<string, unknown>;
+};
+
 export type Position = {
   id: string;
   projectId: string;
   name?: string;
   isin: string;
-  side: "put" | "call";
+  side: "put" | "call" | "spot";
+  currency?: string;
   size: number;
   entryPrice: number;
   pricingMode: "market" | "model";
@@ -101,6 +123,13 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function computePositionRiskScore(position: Position, now: Date) {
+  if (position.side === "spot") {
+    const volatility = position.volatility ?? 0.25;
+    const volFactor = clamp(volatility / 0.6, 0, 1);
+    const sizeFactor = clamp(Math.log10(position.size + 1) / 2, 0, 1);
+    return clamp((0.2 * volFactor + 0.1 * sizeFactor) * 100, 0, 100);
+  }
+
   const volatility = position.volatility ?? 0.3;
   const volFactor = clamp(volatility / 0.6, 0, 1);
 
@@ -210,10 +239,18 @@ export async function createProject(
     color: input.color ?? null,
     baseCurrency: input.baseCurrency ?? "EUR",
     riskProfile: input.riskProfile ?? null,
+    underlyingLastPrice: null,
+    underlyingLastPriceUpdatedAt: null,
+    underlyingLastPriceSource: null,
+    underlyingLastPriceCurrency: null,
     tickerInfo: null,
     tickerFetchedAt: null,
     massiveTickerInfo: null,
     massiveTickerFetchedAt: null,
+    massiveMarketInfo: null,
+    massiveMarketFetchedAt: null,
+    massivePrevBarInfo: null,
+    massivePrevBarFetchedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -239,7 +276,16 @@ export async function updateProject(
   userId: string,
   projectId: string,
   input: Partial<
-    Pick<Project, "name" | "baseCurrency" | "description" | "underlyingSymbol" | "color">
+    Pick<
+      Project,
+      | "name"
+      | "baseCurrency"
+      | "description"
+      | "underlyingSymbol"
+      | "color"
+      | "underlyingLastPrice"
+      | "underlyingLastPriceCurrency"
+    >
   >
 ) {
   const redis = getRedis();
@@ -247,12 +293,19 @@ export async function updateProject(
   if (!project) return null;
 
   const now = new Date().toISOString();
+  const hasManualPrice = Object.prototype.hasOwnProperty.call(input, "underlyingLastPrice");
   const updated: Project = {
     ...project,
     ...input,
     id: project.id,
     ownerId: project.ownerId,
     createdAt: project.createdAt,
+    underlyingLastPriceUpdatedAt: hasManualPrice
+      ? now
+      : project.underlyingLastPriceUpdatedAt ?? null,
+    underlyingLastPriceSource: hasManualPrice
+      ? "manual"
+      : project.underlyingLastPriceSource ?? null,
     updatedAt: now,
   };
 
@@ -288,10 +341,29 @@ export async function updateProjectTicker(
       }
     : payload.tickerInfo;
 
+  const hasPrice =
+    payload.tickerInfo.quote["05. price"] &&
+    Number.isFinite(Number(payload.tickerInfo.quote["05. price"]));
+
   const updated: Project = {
     ...project,
     tickerInfo: mergedInfo,
     tickerFetchedAt: payload.fetchedAt,
+    underlyingLastPrice:
+      hasPrice
+        ? Number(payload.tickerInfo.quote["05. price"])
+        : project.underlyingLastPrice ?? null,
+    underlyingLastPriceUpdatedAt:
+      hasPrice
+        ? payload.fetchedAt
+        : project.underlyingLastPriceUpdatedAt ?? null,
+    underlyingLastPriceSource:
+      hasPrice
+        ? "alpha_quote"
+        : project.underlyingLastPriceSource ?? null,
+    underlyingLastPriceCurrency: hasPrice
+      ? mergedInfo.overview?.Currency ?? project.underlyingLastPriceCurrency ?? project.baseCurrency
+      : project.underlyingLastPriceCurrency ?? null,
     updatedAt: new Date().toISOString(),
   };
 
@@ -329,6 +401,86 @@ export async function updateProjectMassiveTicker(
   return updated;
 }
 
+export async function updateProjectMassiveMarket(
+  userId: string,
+  projectId: string,
+  payload: { marketInfo: MassiveMarketInfo; fetchedAt: string }
+) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const updated: Project = {
+    ...project,
+    massiveMarketInfo: payload.marketInfo,
+    massiveMarketFetchedAt: payload.fetchedAt,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await redis.set(projectKey(projectId), updated);
+  await redis.zadd(userProjectsKey(userId), {
+    score: Date.parse(updated.updatedAt),
+    member: projectId,
+  });
+
+  return updated;
+}
+
+export async function updateProjectMassivePrevBar(
+  userId: string,
+  projectId: string,
+  payload: { prevBarInfo: MassivePrevBarInfo; fetchedAt: string }
+) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const results = payload.prevBarInfo.payload as Record<string, unknown>;
+  const rawResults = Array.isArray(results.results) ? results.results : [];
+  const firstResult =
+    rawResults.length > 0 && typeof rawResults[0] === "object"
+      ? (rawResults[0] as Record<string, unknown>)
+      : null;
+  const closeValue =
+    firstResult && Number.isFinite(Number(firstResult.c)) ? Number(firstResult.c) : null;
+  const closeTimeMs =
+    firstResult && Number.isFinite(Number(firstResult.t)) ? Number(firstResult.t) : null;
+  const lastPriceUpdatedAtMs = project.underlyingLastPriceUpdatedAt
+    ? Date.parse(project.underlyingLastPriceUpdatedAt)
+    : NaN;
+  const shouldOverwrite =
+    closeValue !== null &&
+    closeTimeMs !== null &&
+    (!Number.isFinite(lastPriceUpdatedAtMs) || lastPriceUpdatedAtMs < closeTimeMs);
+
+  const updated: Project = {
+    ...project,
+    massivePrevBarInfo: payload.prevBarInfo,
+    massivePrevBarFetchedAt: payload.fetchedAt,
+    underlyingLastPrice: shouldOverwrite ? closeValue : project.underlyingLastPrice ?? null,
+    underlyingLastPriceUpdatedAt: shouldOverwrite
+      ? new Date(closeTimeMs).toISOString()
+      : project.underlyingLastPriceUpdatedAt ?? null,
+    underlyingLastPriceSource: shouldOverwrite
+      ? "massive_prev"
+      : project.underlyingLastPriceSource ?? null,
+    underlyingLastPriceCurrency: shouldOverwrite
+      ? project.tickerInfo?.overview?.Currency ??
+        project.underlyingLastPriceCurrency ??
+        project.baseCurrency
+      : project.underlyingLastPriceCurrency ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await redis.set(projectKey(projectId), updated);
+  await redis.zadd(userProjectsKey(userId), {
+    score: Date.parse(updated.updatedAt),
+    member: projectId,
+  });
+
+  return updated;
+}
+
 export async function listPositions(projectId: string) {
   const redis = getRedis();
   const ids = await redis.zrange<string[]>(projectPositionsKey(projectId), 0, 500, {
@@ -351,6 +503,7 @@ export async function addPosition(
     name?: string;
     isin: string;
     side: Position["side"];
+    currency?: string;
     size: number;
     entryPrice: number;
     pricingMode: Position["pricingMode"];
@@ -379,6 +532,7 @@ export async function addPosition(
     name: input.name,
     isin: input.isin,
     side: input.side,
+    currency: input.currency,
     size: input.size,
     entryPrice: input.entryPrice,
     pricingMode: input.pricingMode,

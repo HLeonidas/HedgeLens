@@ -101,6 +101,13 @@ export async function POST(request: Request) {
   const strike = position?.strike ?? instrument?.strike ?? null;
   const expiry = position?.expiry ?? instrument?.expiry ?? null;
   const side = position?.side ?? instrument?.side ?? "call";
+  if (side === "spot") {
+    return NextResponse.json(
+      { error: "Spot positions are not supported in this calculator" },
+      { status: 400 }
+    );
+  }
+  const optionSide = side;
   const currency = project?.baseCurrency ?? instrument?.currency ?? "EUR";
 
   const outputs: ScenarioResult[] = scenarios.map((scenario) => {
@@ -137,7 +144,7 @@ export async function POST(request: Request) {
     const expiryDate = new Date(expiry);
     const T = valuation ? yearFraction(valuation, expiryDate) : 0;
     const dividendYield = scenario.dividendYield ?? defaultDividendYield;
-    const intrinsic = computeIntrinsicValue(side, scenario.underlyingPrice, strike);
+    const intrinsic = computeIntrinsicValue(optionSide, scenario.underlyingPrice, strike);
 
     const rawPrice =
       T <= 0
@@ -149,7 +156,7 @@ export async function POST(request: Request) {
             r: scenario.rate,
             q: dividendYield,
             sigma: scenario.volatility,
-            type: side,
+            type: optionSide,
           });
 
     const withRatio = rawPrice * ratio;
@@ -168,11 +175,11 @@ export async function POST(request: Request) {
             r: scenario.rate,
             q: dividendYield,
             sigma: scenario.volatility,
-            type: side,
+            type: optionSide,
           });
 
     const breakEven =
-      side === "call" ? strike + rawPrice / ratio : strike - rawPrice / ratio;
+      optionSide === "call" ? strike + rawPrice / ratio : strike - rawPrice / ratio;
     const premium = scenario.underlyingPrice
       ? (breakEven - scenario.underlyingPrice) / scenario.underlyingPrice
       : null;

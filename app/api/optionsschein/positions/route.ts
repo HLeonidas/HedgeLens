@@ -21,6 +21,7 @@ export async function GET() {
         let computed = position.computed;
 
         if (
+          position.side !== "spot" &&
           !computed &&
           position.underlyingPrice &&
           position.strike &&
@@ -35,7 +36,7 @@ export async function GET() {
             r: position.rate,
             q: position.dividendYield ?? 0,
             sigma: position.volatility,
-            type: position.side,
+            type: position.side as "call" | "put",
           });
           computed = model.computed;
         }

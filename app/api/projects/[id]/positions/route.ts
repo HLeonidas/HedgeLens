@@ -27,7 +27,7 @@ export async function POST(
   const dividendYield = input.dividendYield ?? 0;
 
   const modelResult =
-    input.pricingMode === "model"
+    input.pricingMode === "model" && input.side !== "spot"
       ? computeModelPricing({
           S: input.underlyingPrice ?? 0,
           K: input.strike ?? 0,

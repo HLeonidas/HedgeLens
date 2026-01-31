@@ -23,6 +23,9 @@ export async function POST(
   if (position.pricingMode !== "model") {
     return NextResponse.json({ error: "Position is not in model mode" }, { status: 400 });
   }
+  if (position.side === "spot") {
+    return NextResponse.json({ error: "Spot position cannot be recomputed" }, { status: 400 });
+  }
 
   const modelResult = computeModelPricing({
     S: position.underlyingPrice ?? 0,

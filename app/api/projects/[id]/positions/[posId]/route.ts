@@ -58,6 +58,7 @@ export async function PATCH(
   const validation = validatePositionAfterMerge({
     isin: merged.isin,
     side: merged.side,
+    currency: merged.currency,
     size: merged.size,
     entryPrice: merged.entryPrice,
     pricingMode: normalizedPricingMode,
@@ -77,7 +78,7 @@ export async function PATCH(
   }
 
   const modelResult =
-    normalizedPricingMode === "model"
+    normalizedPricingMode === "model" && merged.side !== "spot"
       ? computeModelPricing({
           S: merged.underlyingPrice ?? 0,
           K: merged.strike ?? 0,

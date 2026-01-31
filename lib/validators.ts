@@ -15,12 +15,15 @@ export type UpdateProjectInput = {
   description?: string;
   underlyingSymbol?: string;
   color?: string;
+  underlyingLastPrice?: number;
+  underlyingLastPriceCurrency?: string;
 };
 
 export type CreatePositionInput = {
   name?: string;
   isin: string;
-  side: "put" | "call";
+  side: "put" | "call" | "spot";
+  currency?: string;
   size: number;
   entryPrice: number;
   pricingMode: "market" | "model";
@@ -54,7 +57,13 @@ const isinSchema = z
   .trim()
   .min(6, "Invalid ISIN")
   .max(20, "Invalid ISIN");
-const sideSchema = z.enum(["put", "call"]);
+const spotSymbolSchema = z
+  .string()
+  .trim()
+  .min(1, "Invalid symbol")
+  .max(24, "Invalid symbol");
+const sideSchema = z.enum(["put", "call", "spot"]);
+const optionSideSchema = z.enum(["put", "call"]);
 const sizeSchema = requiredNumber(
   z.number().finite().gt(0, "Size must be a positive number")
 );
@@ -67,12 +76,13 @@ const dateSchema = z.string().refine((value) => Number.isFinite(Date.parse(value
 
 const createMarketSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80, "Name is too long").optional(),
-  isin: isinSchema,
+  isin: spotSymbolSchema,
   side: sideSchema,
+  currency: z.string().trim().max(8, "Currency is too long").optional(),
   size: sizeSchema,
   entryPrice: entryPriceSchema,
   pricingMode: z.literal("market"),
-  marketPrice: requiredNumber(
+  marketPrice: optionalNumber(
     z.number().finite().min(0, "Market price must be 0 or greater")
   ),
   underlyingSymbol: z.string().trim().optional(),
@@ -83,7 +93,8 @@ const createMarketSchema = z.object({
 const createModelSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80, "Name is too long").optional(),
   isin: isinSchema,
-  side: sideSchema,
+  side: optionSideSchema,
+  currency: z.string().trim().max(8, "Currency is too long").optional(),
   size: sizeSchema,
   entryPrice: entryPriceSchema,
   pricingMode: z.literal("model"),
@@ -109,8 +120,9 @@ const createPositionSchema = z.discriminatedUnion("pricingMode", [
 
 const updatePositionSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80, "Name is too long").optional(),
-  isin: isinSchema.optional(),
+  isin: spotSymbolSchema.optional(),
   side: sideSchema.optional(),
+  currency: z.string().trim().max(8, "Currency is too long").optional(),
   size: sizeSchema.optional(),
   entryPrice: entryPriceSchema.optional(),
   pricingMode: z.enum(["market", "model"]).optional(),
@@ -166,6 +178,15 @@ const updateProjectSchema = z.object({
     .trim()
     .regex(/^#([0-9a-fA-F]{6})$/, "Color must be a hex value")
     .optional(),
+  underlyingLastPrice: optionalNumber(
+    z.number().finite().min(0, "Underlying price must be 0 or greater")
+  ),
+  underlyingLastPriceCurrency: z
+    .string()
+    .trim()
+    .max(8, "Currency is too long")
+    .optional()
+    .transform((value) => (value ? value.toUpperCase() : undefined)),
 });
 
 function toValidationResult<T>(result: z.SafeParseReturnType<unknown, T>): ValidationResult<T> {
@@ -185,8 +206,25 @@ export function validateUpdateProject(input: unknown): ValidationResult<UpdatePr
   return toValidationResult(updateProjectSchema.safeParse(input));
 }
 
+function enforcePositionRules(
+  data: CreatePositionInput
+): ValidationResult<CreatePositionInput> {
+  if (data.side !== "spot") {
+    const isinLen = data.isin.trim().length;
+    if (isinLen < 6) {
+      return { ok: false, error: "Invalid ISIN" };
+    }
+  }
+  if (data.pricingMode === "market" && data.side !== "spot" && data.marketPrice === undefined) {
+    return { ok: false, error: "Market price must be 0 or greater" };
+  }
+  return { ok: true, data };
+}
+
 export function validateCreatePosition(input: unknown): ValidationResult<CreatePositionInput> {
-  return toValidationResult(createPositionSchema.safeParse(input));
+  const parsed = toValidationResult(createPositionSchema.safeParse(input));
+  if (!parsed.ok) return parsed;
+  return enforcePositionRules(parsed.data);
 }
 
 export function validateUpdatePosition(input: unknown): ValidationResult<UpdatePositionInput> {
@@ -194,5 +232,7 @@ export function validateUpdatePosition(input: unknown): ValidationResult<UpdateP
 }
 
 export function validatePositionAfterMerge(input: unknown): ValidationResult<CreatePositionInput> {
-  return toValidationResult(createPositionSchema.safeParse(input));
+  const parsed = toValidationResult(createPositionSchema.safeParse(input));
+  if (!parsed.ok) return parsed;
+  return enforcePositionRules(parsed.data);
 }

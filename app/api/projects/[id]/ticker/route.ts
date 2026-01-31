@@ -58,7 +58,8 @@ export async function POST(
     if (!overviewRes.ok) {
       return NextResponse.json({ error: "Alpha Vantage request failed" }, { status: 502 });
     }
-    overview = (await overviewRes.json().catch(() => null)) as AlphaOverview | null;
+    const overviewPayload = (await overviewRes.json().catch(() => null)) as AlphaOverview | null;
+    overview = overviewPayload ?? {};
     const remoteError =
       overview?.Note || overview?.["Error Message"] || overview?.Information || null;
     if (remoteError) {
@@ -109,5 +110,12 @@ export async function POST(
     return NextResponse.json({ error: "Unable to store ticker info" }, { status: 500 });
   }
 
-  return NextResponse.json({ tickerInfo: updated.tickerInfo, fetchedAt: updated.tickerFetchedAt });
+  return NextResponse.json({
+    tickerInfo: updated.tickerInfo,
+    fetchedAt: updated.tickerFetchedAt,
+    underlyingLastPrice: updated.underlyingLastPrice,
+    underlyingLastPriceUpdatedAt: updated.underlyingLastPriceUpdatedAt,
+    underlyingLastPriceSource: updated.underlyingLastPriceSource,
+    underlyingLastPriceCurrency: updated.underlyingLastPriceCurrency,
+  });
 }
