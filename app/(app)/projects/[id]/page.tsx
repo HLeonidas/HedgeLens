@@ -1384,11 +1384,11 @@ export default function ProjectDetailPage() {
   function priceSourceLabel(source: Project["underlyingLastPriceSource"]) {
     switch (source) {
       case "alpha_quote":
-        return "Preis laden";
+        return "Alpha Preis (Quote)";
       case "massive_prev":
-				return "Massive Prev";
+				return "Massive Schlusskurs (Prev)";
 			case "manual":
-				return "Manuell";
+				return "Manuell gesetzt";
 			default:
 				return "—";
     }
@@ -1541,7 +1541,7 @@ export default function ProjectDetailPage() {
 										className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 									>
 										<span className="material-symbols-outlined text-base">payments</span>
-										{tickerLoading ? "Lädt..." : "Preis laden"}
+										{tickerLoading ? "Lädt..." : "Alpha Preis (Quote)"}
 									</button>
 
 									<button
@@ -1551,7 +1551,7 @@ export default function ProjectDetailPage() {
 										className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 									>
 										<span className="material-symbols-outlined text-base">history</span>
-										{massivePrevLoading ? "Lädt..." : "Massive Prev"}
+										{massivePrevLoading ? "Lädt..." : "Massive Schlusskurs (Prev)"}
 									</button>
 									{project.tickerFetchedAt ? (
 										<span className="text-[11px] text-slate-400">
@@ -1730,6 +1730,18 @@ export default function ProjectDetailPage() {
 								const industryValue = overview.Industry;
 								const dividendValue = overview.DividendYield;
 								const tradingDayValue = quote["07. latest trading day"];
+								const high52Value = overview["52WeekHigh"];
+								const low52Value = overview["52WeekLow"];
+								const targetPriceValue = overview.AnalystTargetPrice;
+								const betaValue = overview.Beta;
+								const ma50Value = overview["50DayMovingAverage"];
+								const ma200Value = overview["200DayMovingAverage"];
+								const targetDeltaPercent = (() => {
+									const price = parseAlphaNumber(priceValue);
+									const target = parseAlphaNumber(targetPriceValue);
+									if (price === null || target === null || price === 0) return null;
+									return ((target - price) / price) * 100;
+								})();
 
 								return (
 									<>
@@ -1757,7 +1769,7 @@ export default function ProjectDetailPage() {
 													<span className="material-symbols-outlined text-base">
 														travel_explore
 													</span>
-													{tickerLoading ? "Lädt..." : "Overview laden"}
+													{tickerLoading ? "Lädt..." : "Alpha Overview"}
 												</button>
 												<button
 													type="button"
@@ -1766,21 +1778,11 @@ export default function ProjectDetailPage() {
 													className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 												>
 													<span className="material-symbols-outlined text-base">insights</span>
-													{massiveLoading ? "Lädt..." : "Massive laden"}
+													{massiveLoading ? "Lädt..." : "Massive Profil"}
 												</button>
 											</div>
 										</div>
-										<div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs text-slate-600">
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">Price</p>
-												<p className="text-sm font-semibold text-slate-900">
-													{priceValue ? formatNumber(priceValue) : "—"}{" "}
-													<span className="text-[10px] text-slate-400">{currencyValue}</span>
-												</p>
-												<p className="text-[11px] text-slate-400">
-													{changePercentValue ?? "—"}
-												</p>
-											</div>
+										<div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-xs text-slate-600">
 											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
 												<p className="text-[11px] uppercase text-slate-400">Market Cap</p>
 												<p className="text-sm font-semibold text-slate-900">
@@ -1806,6 +1808,35 @@ export default function ProjectDetailPage() {
 												</p>
 												<p className="text-[11px] text-slate-400">
 													Last Trade {tradingDayValue ?? "—"}
+												</p>
+											</div>
+											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+												<p className="text-[11px] uppercase text-slate-400">52W Range</p>
+												<p className="text-sm font-semibold text-slate-900">
+													{formatMaybeNumeric(high52Value)}{" "}
+													<span className="text-[10px] text-slate-400">/</span>{" "}
+													{formatMaybeNumeric(low52Value)}
+												</p>
+												<p className="text-[11px] text-slate-400">High / Low</p>
+											</div>
+											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+												<p className="text-[11px] uppercase text-slate-400">Analyst Target</p>
+												<p className="text-sm font-semibold text-slate-900">
+													{formatMaybeNumeric(targetPriceValue)}
+												</p>
+												<p className="text-[11px] text-slate-400">
+													{targetDeltaPercent === null
+														? "—"
+														: `${targetDeltaPercent > 0 ? "+" : ""}${targetDeltaPercent.toFixed(1)}% vs price`}
+												</p>
+											</div>
+											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+												<p className="text-[11px] uppercase text-slate-400">Beta / Trend</p>
+												<p className="text-sm font-semibold text-slate-900">
+													{formatMaybeNumeric(betaValue)}
+												</p>
+												<p className="text-[11px] text-slate-400">
+													50d {formatMaybeNumeric(ma50Value)} · 200d {formatMaybeNumeric(ma200Value)}
 												</p>
 											</div>
 										</div>
@@ -1911,34 +1942,32 @@ export default function ProjectDetailPage() {
           ) : null} */}
 
 					<div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <button
-              type="button"
-              onClick={() => setShowRiskScoreModal(true)}
-              className="bg-surface-light border border-border-light p-4 rounded-xl text-left transition-all hover:border-slate-300 hover:shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-500 uppercase">Risk Profile</p>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase">
-                  <span className="material-symbols-outlined text-[14px]">info</span>
-                  Score
-                </span>
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-base">
-                    {riskIcon(project.riskProfile)}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-slate-900">
-                    {getRiskBadge(project.riskProfile).label}
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    {riskDescription(project.riskProfile)}
-                  </span>
-                </div>
-              </div>
-            </button>
+						<button
+							type="button"
+							onClick={() => setShowRiskScoreModal(true)}
+							className="bg-surface-light border border-border-light p-4 rounded-xl text-left transition-all hover:border-slate-300 hover:shadow-sm"
+						>
+							<div className="flex items-center justify-between">
+								<p className="text-xs font-semibold text-slate-500 uppercase">Risk Profile</p>
+								<span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase">
+									<span className="material-symbols-outlined text-[14px]">info</span>
+									Score
+								</span>
+							</div>
+							<div className="mt-2 flex items-center justify-between gap-3">
+								<span className="text-xl font-bold text-slate-900 leading-none">
+									{getRiskBadge(project.riskProfile).label}
+								</span>
+								<span className="h-7 w-7 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+									<span className="material-symbols-outlined text-[15px] leading-none">
+										{riskIcon(project.riskProfile)}
+									</span>
+								</span>
+							</div>
+							<span className="mt-2 block text-[11px] text-slate-500">
+								{riskDescription(project.riskProfile)}
+							</span>
+						</button>
 						<div className="bg-surface-light border border-border-light p-4 rounded-xl">
 							<p className="text-xs font-semibold text-slate-500 uppercase">Put/Call Ratio</p>
 							<p className="text-2xl font-bold mt-1">
