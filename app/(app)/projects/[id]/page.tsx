@@ -169,6 +169,7 @@ export default function ProjectDetailPage() {
 	const [tickerDraft, setTickerDraft] = useState("");
 	const [tickerSaveError, setTickerSaveError] = useState<string | null>(null);
 	const [tickerSaveLoading, setTickerSaveLoading] = useState(false);
+	const [onvistaLoadingIsin, setOnvistaLoadingIsin] = useState<string | null>(null);
 	const [fetchMassiveAfterTicker, setFetchMassiveAfterTicker] = useState(true);
 	const [editName, setEditName] = useState("");
 	const [editDescription, setEditDescription] = useState("");
@@ -192,22 +193,31 @@ export default function ProjectDetailPage() {
 	const [ratePct, setRatePct] = useState<number | "">(3);
 	const [dividendYieldPct, setDividendYieldPct] = useState<number | "">(0);
 	const [ratio, setRatio] = useState<number | "">(1);
-  const [positionCreateMode, setPositionCreateMode] = useState<"manual" | "lookup">("lookup");
+	const [positionCreateMode, setPositionCreateMode] = useState<"manual" | "lookup">("lookup");
 	const [positionAssetType, setPositionAssetType] = useState<"options" | "spot">("options");
 	const [lookupValue, setLookupValue] = useState("");
 	const [lookupLoading, setLookupLoading] = useState(false);
 	const [lookupError, setLookupError] = useState<string | null>(null);
+	const [lookupSuccess, setLookupSuccess] = useState(false);
 
   const canAdd = useMemo(() => {
     const baseValid = Boolean(isin.trim()) && Number(size) > 0 && entryPrice !== "";
     if (!baseValid) return false;
+		if (
+			positionAssetType === "options" &&
+			positionCreateMode === "lookup" &&
+			!lookupSuccess &&
+			!editingPositionId
+		) {
+			return false;
+		}
 
     if (positionAssetType === "spot") {
       return true;
     }
 
     if (pricingMode === "market") {
-      return marketPrice !== "";
+      return marketPrice !== "" || (positionCreateMode === "lookup" && lookupSuccess);
     }
 
     return (
@@ -224,12 +234,19 @@ export default function ProjectDetailPage() {
     pricingMode,
     positionAssetType,
     marketPrice,
+		lookupSuccess,
+		positionCreateMode,
+		editingPositionId,
     underlyingPrice,
     strike,
     expiry,
     volatilityPct,
     ratePct,
   ]);
+
+	const isLookupMode =
+		!editingPositionId && positionCreateMode === "lookup" && positionAssetType === "options";
+	const showLookupOnlyFields = isLookupMode && lookupSuccess;
 
   const totalValueBase = useMemo(() => {
     if (!project) return null;
@@ -688,6 +705,7 @@ export default function ProjectDetailPage() {
     setRatio(1);
     setLookupValue("");
     setLookupError(null);
+		setLookupSuccess(false);
     setPositionCreateMode("lookup");
     setPositionAssetType("options");
   }
@@ -696,6 +714,7 @@ export default function ProjectDetailPage() {
 		if (!lookupValue.trim()) return;
 		setLookupLoading(true);
 		setLookupError(null);
+		setLookupSuccess(false);
 		try {
 			const response = await fetch("/api/isin/lookup", {
 				method: "POST",
@@ -728,13 +747,30 @@ export default function ProjectDetailPage() {
 			setIsin(payload.isin);
 			setName(payload.name ?? "");
 			setSide(payload.type ?? "call");
+			setPricingMode("market");
 			setStrike(payload.strike ?? "");
 			setExpiry(payload.expiry ?? "");
 			setRatio(payload.ratio ?? 1);
 			setUnderlyingSymbol(payload.underlying ?? "");
 			if (payload.price !== undefined) {
-				setPricingMode("market");
 				setMarketPrice(payload.price);
+			}
+
+			try {
+				const importResponse = await fetch("/api/import/onvista", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ isin: payload.isin }),
+				});
+				const importPayload = (await importResponse.json().catch(() => null)) as
+					| { ok?: boolean; data?: Record<string, unknown>; error?: string }
+					| null;
+				if (!importResponse.ok || !importPayload?.ok || !importPayload.data) {
+					throw new Error(importPayload?.error ?? "Onvista scrape failed");
+				}
+				setLookupSuccess(true);
+			} catch (err) {
+				throw err;
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Lookup fehlgeschlagen";
@@ -752,6 +788,20 @@ export default function ProjectDetailPage() {
 		try {
       const normalizedPricingMode =
         positionAssetType === "spot" ? "market" : pricingMode;
+			const isLookupMode =
+				!editingPositionId &&
+				positionAssetType === "options" &&
+				positionCreateMode === "lookup";
+			const resolvedMarketPrice =
+				normalizedPricingMode === "market"
+					? positionAssetType === "spot"
+						? Number(entryPrice)
+						: marketPrice !== ""
+							? Number(marketPrice)
+							: isLookupMode
+								? Number(entryPrice)
+								: undefined
+					: undefined;
         const payload = {
           name: name.trim() || undefined,
           isin: isin.trim(),
@@ -760,12 +810,7 @@ export default function ProjectDetailPage() {
           size: Number(size),
           entryPrice: Number(entryPrice),
           pricingMode: normalizedPricingMode,
-          marketPrice:
-            normalizedPricingMode === "market"
-              ? positionAssetType === "spot"
-                ? Number(entryPrice)
-                : Number(marketPrice)
-              : undefined,
+          marketPrice: resolvedMarketPrice,
         underlyingSymbol: normalizedPricingMode === "model" ? underlyingSymbol.trim() || undefined : undefined,
         underlyingPrice:
           normalizedPricingMode === "model" ? Number(underlyingPrice) : undefined,
@@ -902,10 +947,11 @@ export default function ProjectDetailPage() {
     if (positionAssetType !== "spot") return;
     setName(project.name);
     setIsin(project.underlyingSymbol ?? "");
-    setSide("spot");
-    setPricingMode("market");
-    setPositionCreateMode("manual");
-    setUnderlyingSymbol("");
+      setSide("spot");
+      setPricingMode("market");
+      setPositionCreateMode("manual");
+			setLookupSuccess(false);
+      setUnderlyingSymbol("");
     setUnderlyingPrice("");
     setStrike("");
     setExpiry("");
@@ -1032,7 +1078,7 @@ export default function ProjectDetailPage() {
 		setShowPositionModal(true);
 	}
 
-  function openEditPosition(position: Position) {
+	function openEditPosition(position: Position) {
     setEditingPositionId(position.id);
     setIsin(position.isin);
     setName(position.name ?? "");
@@ -1052,6 +1098,46 @@ export default function ProjectDetailPage() {
 		setDividendYieldPct(position.dividendYield ? position.dividendYield * 100 : 0);
 		setRatio(position.ratio ?? 1);
 		setShowPositionModal(true);
+	}
+
+	async function handleShowOnvista(isinValue: string) {
+		const normalized = isinValue.trim().toUpperCase();
+		if (!normalized) return;
+		setOnvistaLoadingIsin(normalized);
+		try {
+			let response = await fetch(`/api/import/onvista/by-isin?isin=${encodeURIComponent(normalized)}`);
+			let payload = (await response.json().catch(() => null)) as
+				| { ok?: boolean; data?: Record<string, unknown>; error?: string }
+				| null;
+
+			if (!response.ok || !payload?.ok || !payload.data) {
+				const importResponse = await fetch("/api/import/onvista", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ isin: normalized }),
+				});
+				const importPayload = (await importResponse.json().catch(() => null)) as
+					| { ok?: boolean; data?: Record<string, unknown>; error?: string }
+					| null;
+				if (!importResponse.ok || !importPayload?.ok || !importPayload.data) {
+					throw new Error(importPayload?.error ?? payload?.error ?? "Onvista data not found");
+				}
+				response = importResponse;
+				payload = importPayload;
+			}
+
+						setPayloadModal({
+							title: `Onvista scrape · ${normalized}`,
+							payload: payload.data ?? null,
+						});
+		} catch (err) {
+			setPayloadModal({
+				title: `Onvista scrape · ${normalized}`,
+				payload: { error: err instanceof Error ? err.message : "Onvista data not found" },
+			});
+		} finally {
+			setOnvistaLoadingIsin(null);
+		}
 	}
 
 	function openDeletePosition(position: Position) {
@@ -2262,7 +2348,7 @@ export default function ProjectDetailPage() {
 							</p>
 						</div>
 					) : (
-						<div className="rounded-xl border border-border-light bg-white shadow-sm overflow-hidden">
+						<div className="rounded-xl border border-border-light bg-white shadow-sm overflow-visible">
 							<div className="overflow-x-auto overflow-y-visible">
 								<table className="w-full min-w-[980px] text-left border-collapse">
 									<thead>
@@ -2270,6 +2356,28 @@ export default function ProjectDetailPage() {
 											<th className="px-4 py-3">Instrument</th>
 											<th className="px-4 py-3">Type/Shares</th>
 											<th className="px-4 py-3">Entry</th>
+											<th className="px-4 py-3">
+												<div className="flex items-center gap-2">
+													<div className="flex flex-col">
+														<span>Price</span>
+													</div>
+													<Popover className="relative inline-flex group">
+														<Popover.Button
+															type="button"
+															className="inline-flex items-center text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 rounded"
+															aria-label="Current rate info"
+														>
+															<span className="material-symbols-outlined text-[16px]">info</span>
+														</Popover.Button>
+														<Popover.Panel
+															static
+															className="pointer-events-none absolute left-full top-1/2 ml-2 w-max -translate-y-1/2 rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 z-50"
+														>
+															Current rate based on the latest available price.
+														</Popover.Panel>
+													</Popover>
+												</div>
+											</th>
 											<th className="px-4 py-3">Value</th>
 											<th className="px-4 py-3">Perf.</th>
 											<th className="px-4 py-3">Lev.</th>
@@ -2322,6 +2430,10 @@ export default function ProjectDetailPage() {
 												currentValue === null ? null : convertValue(currentValue, currentCurrency, "EUR");
 											const valueUsd =
 												currentValue === null ? null : convertValue(currentValue, currentCurrency, "USD");
+											const priceEur =
+												displayValue === undefined ? null : convertValue(displayValue, currentCurrency, "EUR");
+											const priceUsd =
+												displayValue === undefined ? null : convertValue(displayValue, currentCurrency, "USD");
 											const isLastRow = index === positions.length - 1;
 											return (
 												<tr key={position.id} className="hover:bg-slate-50/70 transition-colors">
@@ -2345,35 +2457,35 @@ export default function ProjectDetailPage() {
 															</span>
 														</div>
 													</td>
-													<td className="px-4 py-3 text-sm text-slate-700">
-														<div className="flex flex-col">
-															<span className="text-sm font-semibold">
-																{formatNumber(position.entryPrice.toString(), {
-																	maximumFractionDigits: 2,
-																})}{" "}
+											<td className="px-4 py-3 text-sm text-slate-700">
+												<div className="flex flex-col">
+													<span className="text-sm font-semibold">
+														{formatNumber(position.entryPrice.toString(), {
+															maximumFractionDigits: 2,
+														})}{" "}
 																<span className="text-xs text-slate-400 uppercase">
 																	{entryCurrency}
 																</span>
 															</span>
 															<span className="text-[10px] text-slate-500 uppercase tracking-tighter">
-																{entryCurrency === project.baseCurrency.toUpperCase()
-																	? "Base currency"
-																	: (() => {
-																			const entryBase =
-																				convertValue(
-																					position.entryPrice,
-																					entryCurrency,
-																					project.baseCurrency
-																				);
-																			return entryBase === null
-																				? "FX?"
-																				: `${formatNumber(entryBase.toString(), {
-																						maximumFractionDigits: 2,
-																					})} ${project.baseCurrency.toUpperCase()}`;
-																		})()}
+																{formatMoney(entryValue, entryCurrency)}
 															</span>
-														</div>
-													</td>
+												</div>
+											</td>
+											<td className="px-4 py-3 text-sm text-slate-700">
+												{priceEur === null ? (
+													<span className="text-slate-400">—</span>
+												) : (
+													<div className="flex flex-col">
+														<span className="text-sm font-semibold text-slate-800">
+															{formatMoney(priceEur, "EUR")}
+														</span>
+														<span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+															{formatMoney(priceUsd, "USD")}
+														</span>
+													</div>
+												)}
+											</td>
 													<td className="px-4 py-3 text-sm text-slate-700">
 														{currentValue === null ? (
 															<span className="text-slate-400">—</span>
@@ -2463,6 +2575,30 @@ export default function ProjectDetailPage() {
 																					sync
 																				</span>
 																				Recompute model
+																			</button>
+																		)}
+																	</Menu.Item>
+																) : null}
+																{position.side !== "spot" ? (
+																	<Menu.Item>
+																		{({ active }) => (
+																			<button
+																				type="button"
+																				onClick={() => handleShowOnvista(position.isin)}
+																				className={[
+																					"w-full px-3 py-2 text-left text-xs font-semibold text-slate-600 flex items-center gap-2",
+																					active ? "bg-slate-50" : "",
+																				]
+																					.filter(Boolean)
+																					.join(" ")}
+																				disabled={loading || onvistaLoadingIsin === position.isin.toUpperCase()}
+																			>
+																				<span className="material-symbols-outlined text-base">
+																					auto_awesome
+																				</span>
+																				{onvistaLoadingIsin === position.isin.toUpperCase()
+																					? "Loading Onvista data..."
+																					: "Show Onvista scrape"}
 																			</button>
 																		)}
 																	</Menu.Item>
@@ -2565,7 +2701,10 @@ export default function ProjectDetailPage() {
 								<div className="flex flex-wrap items-center gap-2">
 									<button
 										type="button"
-										onClick={() => setPositionAssetType("options")}
+										onClick={() => {
+											setPositionAssetType("options");
+											setLookupSuccess(false);
+										}}
 										className={`rounded-full border px-3 py-1 text-xs font-semibold ${positionAssetType === "options"
 												? "border-slate-900 bg-slate-900 text-white"
 											: "border-slate-200 bg-white text-slate-600"
@@ -2575,11 +2714,12 @@ export default function ProjectDetailPage() {
 								</button>
 								<button
 									type="button"
-									onClick={() => {
-										setPositionAssetType("spot");
-										setPositionCreateMode("manual");
-										setPricingMode("market");
-									}}
+										onClick={() => {
+											setPositionAssetType("spot");
+											setPositionCreateMode("manual");
+											setPricingMode("market");
+											setLookupSuccess(false);
+										}}
 									className={`rounded-full border px-3 py-1 text-xs font-semibold ${positionAssetType === "spot"
 											? "border-slate-900 bg-slate-900 text-white"
 											: "border-slate-200 bg-white text-slate-600"
@@ -2593,7 +2733,10 @@ export default function ProjectDetailPage() {
 									<div className="flex flex-wrap items-center gap-2">
 										<button
 											type="button"
-											onClick={() => setPositionCreateMode("manual")}
+											onClick={() => {
+												setPositionCreateMode("manual");
+												setLookupSuccess(false);
+											}}
 											className={`rounded-full border px-3 py-1 text-xs font-semibold ${positionCreateMode === "manual"
 													? "border-slate-900 bg-slate-900 text-white"
 													: "border-slate-200 bg-white text-slate-600"
@@ -2603,7 +2746,10 @@ export default function ProjectDetailPage() {
 										</button>
 										<button
 											type="button"
-											onClick={() => setPositionCreateMode("lookup")}
+											onClick={() => {
+												setPositionCreateMode("lookup");
+												setLookupSuccess(false);
+											}}
 											className={`rounded-full border px-3 py-1 text-xs font-semibold ${positionCreateMode === "lookup"
 													? "border-slate-900 bg-slate-900 text-white"
 													: "border-slate-200 bg-white text-slate-600"
@@ -2617,32 +2763,105 @@ export default function ProjectDetailPage() {
 						) : null}
 
 						{!editingPositionId && positionCreateMode === "lookup" && positionAssetType === "options" ? (
-							<div className="space-y-3">
-								<label className="text-xs font-bold uppercase text-slate-500">
-									WKN oder ISIN
-								</label>
+							<div className="rounded-xl border border-border-light bg-slate-50/70 p-4 space-y-3">
+								<div className="flex items-center justify-between">
+									<label className="text-xs font-bold uppercase text-slate-500">
+										WKN oder ISIN
+									</label>
+									<span className="text-[10px] text-slate-400">Lookup</span>
+								</div>
 								<div className="flex items-center gap-2">
 									<input
 										value={lookupValue}
-										onChange={(event) => setLookupValue(event.target.value)}
-										className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										onChange={(event) => {
+											setLookupValue(event.target.value);
+											setLookupSuccess(false);
+										}}
+										className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-white"
 										placeholder="z.B. DE000... oder WKN"
+										disabled={lookupLoading}
 									/>
 									<button
 										type="button"
 										onClick={handleLookupInstrument}
 										disabled={lookupLoading}
-										className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-60"
+										className="px-4 py-3 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-60"
 									>
 										{lookupLoading ? "Suche..." : "Lookup"}
 									</button>
 								</div>
+								{lookupLoading ? (
+									<div className="flex items-center gap-2 text-xs text-slate-500">
+										<span className="material-symbols-outlined text-base animate-spin">
+											progress_activity
+										</span>
+										Instrument wird geladen…
+									</div>
+								) : null}
 								{lookupError ? (
 									<p className="text-xs text-rose-600">{lookupError}</p>
 								) : null}
+								{lookupSuccess ? (
+									<div className="flex items-center gap-2 text-xs text-emerald-600">
+										<span className="material-symbols-outlined text-base">check_circle</span>
+										ISIN found.
+									</div>
+								) : null}
 							</div>
 						) : null}
-						<div className="grid gap-4 md:grid-cols-2">
+						{isLookupMode ? (
+							showLookupOnlyFields ? (
+								<div className="grid gap-4 md:grid-cols-2">
+									<div>
+										<label className="text-xs font-bold uppercase text-slate-500">Size</label>
+										<input
+											type="number"
+											min={1}
+											step={1}
+											value={size}
+											onChange={(event) => setSize(Number(event.target.value))}
+											className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										/>
+									</div>
+									<div>
+										<label className="text-xs font-bold uppercase text-slate-500">
+											Entry price
+										</label>
+										<input
+											type="number"
+											min={0}
+											step={0.01}
+											value={entryPrice}
+											onChange={(event) =>
+												setEntryPrice(event.target.value === "" ? "" : Number(event.target.value))
+											}
+											className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										/>
+									</div>
+									<div>
+										<label className="text-xs font-bold uppercase text-slate-500">Currency</label>
+										<select
+											value={positionCurrency.toUpperCase()}
+											onChange={(event) => setPositionCurrency(event.target.value)}
+											className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
+										>
+											<option value="EUR">EUR</option>
+											<option value="USD">USD</option>
+											<option value="GBP">GBP</option>
+											<option value="CHF">CHF</option>
+											<option value="JPY">JPY</option>
+											<option value="AUD">AUD</option>
+											<option value="CAD">CAD</option>
+											<option value="SEK">SEK</option>
+											<option value="NOK">NOK</option>
+											<option value="DKK">DKK</option>
+										</select>
+									</div>
+								</div>
+							) : null
+						) : (
+							<>
+								<div className="grid gap-4 md:grid-cols-2">
 							<div>
 								<label className="text-xs font-bold uppercase text-slate-500">Name</label>
 								<input
@@ -2855,6 +3074,8 @@ export default function ProjectDetailPage() {
 								</div>
 							</div>
 						) : null}
+							</>
+						)}
 						{error ? <p className="text-sm text-red-600">{error}</p> : null}
 					</div>
 					<div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
@@ -2869,7 +3090,7 @@ export default function ProjectDetailPage() {
 							type="button"
 							onClick={handleSavePosition}
 							disabled={!canAdd || loading}
-							className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+							className="flex-1 px-5 py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
 						>
 							{loading ? "Saving..." : editingPositionId ? "Update Position" : "Add Position"}
 						</button>
@@ -3525,4 +3746,3 @@ export default function ProjectDetailPage() {
 		</div>
 	);
 }
-
