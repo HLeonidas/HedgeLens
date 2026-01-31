@@ -1471,7 +1471,7 @@ export default function ProjectDetailPage() {
 							{(() => {
 								const logoUrl = getMassiveLogo(project.massiveTickerInfo?.payload ?? null);
 								const baseClasses =
-									"h-12 w-12 aspect-square rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 bg-slate-100 text-slate-600";
+									"w-12 aspect-square rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 bg-slate-100 text-slate-600";
 
 								return (
 									<div
@@ -1755,6 +1755,29 @@ export default function ProjectDetailPage() {
 									if (price === null || target === null || price === 0) return null;
 									return ((target - price) / price) * 100;
 								})();
+								const rangePosition = (() => {
+									const low = parseAlphaNumber(low52Value);
+									const high = parseAlphaNumber(high52Value);
+									const price = parseAlphaNumber(priceValue);
+									if (low === null || high === null || price === null) return null;
+									if (high <= low) return null;
+									const clamped = Math.max(low, Math.min(high, price));
+									return ((clamped - low) / (high - low)) * 100;
+								})();
+								const trendLabel = (() => {
+									const ma50 = parseAlphaNumber(ma50Value);
+									const ma200 = parseAlphaNumber(ma200Value);
+									if (ma50 === null || ma200 === null) return "—";
+									return ma50 >= ma200 ? "Trend: Up" : "Trend: Down";
+								})();
+								const trendTone = (() => {
+									const ma50 = parseAlphaNumber(ma50Value);
+									const ma200 = parseAlphaNumber(ma200Value);
+									if (ma50 === null || ma200 === null) return "bg-slate-100 text-slate-600";
+									return ma50 >= ma200
+										? "bg-emerald-100 text-emerald-700"
+										: "bg-rose-100 text-rose-700";
+								})();
 
 								return (
 									<>
@@ -1772,7 +1795,12 @@ export default function ProjectDetailPage() {
 													</p>
 												) : null}
 											</div>
-											<div className="mt-2 flex items-center gap-2 sm:mt-0">
+											<div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-0">
+												<span className="text-[11px] font-semibold text-slate-400">
+													{project.tickerFetchedAt
+														? new Date(project.tickerFetchedAt).toLocaleString()
+														: "—"}
+												</span>
 												<Popover className="relative inline-flex group">
 													<Popover.Button
 														type="button"
@@ -1817,62 +1845,101 @@ export default function ProjectDetailPage() {
 												</Popover>
 											</div>
 										</div>
-										<div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-xs text-slate-600">
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">Market Cap</p>
-												<p className="text-sm font-semibold text-slate-900">
+										<div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-xs text-slate-600">
+											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+												<p className="text-[10px] uppercase tracking-wider text-slate-400">
+													Market Cap
+												</p>
+												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
 													{formatCompact(marketCapValue)}
 												</p>
-												<p className="text-[11px] text-slate-400">
+												<p className="mt-1 text-[11px] text-slate-400">
 													PE {formatMaybeNumeric(peValue)}
 												</p>
 											</div>
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">Sector</p>
-												<p className="text-sm font-semibold text-slate-900">
+											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+												<p className="text-[10px] uppercase tracking-wider text-slate-400">Sector</p>
+												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
 													{sectorValue ?? "—"}
 												</p>
-												<p className="text-[11px] text-slate-400">
+												<p className="mt-1 text-[11px] text-slate-400">
 													{industryValue ?? "—"}
 												</p>
 											</div>
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">Dividend</p>
-												<p className="text-sm font-semibold text-slate-900">
+											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+												<p className="text-[10px] uppercase tracking-wider text-slate-400">
+													Dividend
+												</p>
+												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
 													{formatPercentValue(dividendValue)}
 												</p>
-												<p className="text-[11px] text-slate-400">
+												<p className="mt-1 text-[11px] text-slate-400">
 													Last Trade {tradingDayValue ?? "—"}
 												</p>
 											</div>
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">52W Range</p>
-												<p className="text-sm font-semibold text-slate-900">
-													{formatMaybeNumeric(high52Value)}{" "}
-													<span className="text-[10px] text-slate-400">/</span>{" "}
-													{formatMaybeNumeric(low52Value)}
+											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+												<p className="text-[10px] uppercase tracking-wider text-slate-400">
+													52W Range
 												</p>
-												<p className="text-[11px] text-slate-400">High / Low</p>
+												<div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+													<span>{formatMaybeNumeric(low52Value)}</span>
+													<span>{formatMaybeNumeric(high52Value)}</span>
+												</div>
+												<div className="mt-2 h-1.5 rounded-full bg-slate-200/70 relative overflow-hidden">
+													<div
+														className="absolute top-0 h-1.5 rounded-full bg-slate-400/70"
+														style={{
+															width: rangePosition === null ? "0%" : `${rangePosition}%`,
+														}}
+													/>
+													{rangePosition !== null ? (
+														<span
+															className="absolute -top-1 h-3 w-3 rounded-full border-2 border-white bg-slate-900"
+															style={{ left: `calc(${rangePosition}% - 6px)` }}
+														/>
+													) : null}
+												</div>
+												<p className="mt-2 text-[11px] text-slate-500">Range · aktueller Punkt</p>
 											</div>
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">Analyst Target</p>
-												<p className="text-sm font-semibold text-slate-900">
+											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+												<p className="text-[10px] uppercase tracking-wider text-slate-400">
+													Analyst Target
+												</p>
+												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
 													{formatMaybeNumeric(targetPriceValue)}
 												</p>
-												<p className="text-[11px] text-slate-400">
-													{targetDeltaPercent === null
-														? "—"
-														: `${targetDeltaPercent > 0 ? "+" : ""}${targetDeltaPercent.toFixed(1)}% vs price`}
-												</p>
+												<div className="mt-2">
+													{targetDeltaPercent === null ? (
+														<span className="text-[11px] text-slate-400">—</span>
+													) : (
+														<span
+															className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+																targetDeltaPercent >= 0
+																	? "bg-emerald-100 text-emerald-700"
+																	: "bg-rose-100 text-rose-700"
+															}`}
+														>
+															{targetDeltaPercent > 0 ? "+" : ""}
+															{targetDeltaPercent.toFixed(1)}% vs price
+														</span>
+													)}
+												</div>
 											</div>
-											<div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-												<p className="text-[11px] uppercase text-slate-400">Beta / Trend</p>
-												<p className="text-sm font-semibold text-slate-900">
+											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+												<p className="text-[10px] uppercase tracking-wider text-slate-400">
+													Beta / Trend
+												</p>
+												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
 													{formatMaybeNumeric(betaValue)}
 												</p>
-												<p className="text-[11px] text-slate-400">
-													50d {formatMaybeNumeric(ma50Value)} · 200d {formatMaybeNumeric(ma200Value)}
-												</p>
+												<div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+													<span className={`rounded-full px-2 py-0.5 font-semibold ${trendTone}`}>
+														{trendLabel}
+													</span>
+													<span>50d {formatMaybeNumeric(ma50Value)}</span>
+													<span>·</span>
+													<span>200d {formatMaybeNumeric(ma200Value)}</span>
+												</div>
 											</div>
 										</div>
 										<div className="mt-4 flex items-center gap-2">
