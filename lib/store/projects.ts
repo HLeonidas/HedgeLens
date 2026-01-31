@@ -15,6 +15,8 @@ export type Project = {
   riskProfile: "conservative" | "balanced" | "aggressive" | null;
   tickerInfo?: TickerInfo | null;
   tickerFetchedAt?: string | null;
+  massiveTickerInfo?: MassiveTickerInfo | null;
+  massiveTickerFetchedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -22,18 +24,14 @@ export type Project = {
 export type TickerInfo = {
   source: "alpha_vantage";
   symbol: string;
-  name?: string | null;
-  exchange?: string | null;
-  currency?: string | null;
-  sector?: string | null;
-  industry?: string | null;
-  description?: string | null;
-  marketCap?: string | null;
-  peRatio?: string | null;
-  dividendYield?: string | null;
-  latestTradingDay?: string | null;
-  price?: number | null;
-  changePercent?: string | null;
+  overview: Record<string, string>;
+  quote: Record<string, string>;
+};
+
+export type MassiveTickerInfo = {
+  source: "massive";
+  symbol: string;
+  payload: Record<string, unknown>;
 };
 
 export type Position = {
@@ -214,6 +212,8 @@ export async function createProject(
     riskProfile: input.riskProfile ?? null,
     tickerInfo: null,
     tickerFetchedAt: null,
+    massiveTickerInfo: null,
+    massiveTickerFetchedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -274,10 +274,49 @@ export async function updateProjectTicker(
   const project = await getProject(userId, projectId);
   if (!project) return null;
 
+  const mergedInfo: TickerInfo = project.tickerInfo
+    ? {
+        ...project.tickerInfo,
+        overview:
+          Object.keys(payload.tickerInfo.overview).length > 0
+            ? payload.tickerInfo.overview
+            : project.tickerInfo.overview,
+        quote:
+          Object.keys(payload.tickerInfo.quote).length > 0
+            ? payload.tickerInfo.quote
+            : project.tickerInfo.quote,
+      }
+    : payload.tickerInfo;
+
   const updated: Project = {
     ...project,
-    tickerInfo: payload.tickerInfo,
+    tickerInfo: mergedInfo,
     tickerFetchedAt: payload.fetchedAt,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await redis.set(projectKey(projectId), updated);
+  await redis.zadd(userProjectsKey(userId), {
+    score: Date.parse(updated.updatedAt),
+    member: projectId,
+  });
+
+  return updated;
+}
+
+export async function updateProjectMassiveTicker(
+  userId: string,
+  projectId: string,
+  payload: { tickerInfo: MassiveTickerInfo; fetchedAt: string }
+) {
+  const redis = getRedis();
+  const project = await getProject(userId, projectId);
+  if (!project) return null;
+
+  const updated: Project = {
+    ...project,
+    massiveTickerInfo: payload.tickerInfo,
+    massiveTickerFetchedAt: payload.fetchedAt,
     updatedAt: new Date().toISOString(),
   };
 

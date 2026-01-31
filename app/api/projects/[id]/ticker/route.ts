@@ -5,25 +5,8 @@ import { getProject, updateProjectTicker } from "@/lib/store/projects";
 
 export const runtime = "nodejs";
 
-type AlphaOverview = {
-  Symbol?: string;
-  Name?: string;
-  Exchange?: string;
-  Currency?: string;
-  Sector?: string;
-  Industry?: string;
-  Description?: string;
-  MarketCapitalization?: string;
-  PERatio?: string;
-  DividendYield?: string;
-};
-
-type AlphaQuote = {
-  "01. symbol"?: string;
-  "05. price"?: string;
-  "07. latest trading day"?: string;
-  "10. change percent"?: string;
-};
+type AlphaOverview = Record<string, string>;
+type AlphaQuote = Record<string, string>;
 
 function normalizeSymbol(symbol: string) {
   const trimmed = symbol.trim();
@@ -32,14 +15,8 @@ function normalizeSymbol(symbol: string) {
   return (parts[parts.length - 1] || trimmed).trim().toUpperCase();
 }
 
-function parseNumber(value?: string) {
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const guard = await requireApiUser();
@@ -65,47 +42,66 @@ export async function POST(
     return NextResponse.json({ error: "Invalid symbol" }, { status: 400 });
   }
 
-  const overviewUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${encodeURIComponent(
-    symbol
-  )}&apikey=${encodeURIComponent(apiKey)}`;
-  const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(
-    symbol
-  )}&apikey=${encodeURIComponent(apiKey)}`;
-
-  const [overviewRes, quoteRes] = await Promise.all([fetch(overviewUrl), fetch(quoteUrl)]);
-
-  if (!overviewRes.ok || !quoteRes.ok) {
-    return NextResponse.json({ error: "Alpha Vantage request failed" }, { status: 502 });
-  }
-
-  const overview = (await overviewRes.json().catch(() => null)) as AlphaOverview | null;
-  const quotePayload = (await quoteRes.json().catch(() => null)) as
-    | { "Global Quote"?: AlphaQuote }
-    | { Note?: string }
+  const body = (await request.json().catch(() => null)) as
+    | { type?: "overview" | "quote" }
     | null;
+  const type = body?.type ?? "overview";
 
-  if (!overview || ("Note" in (quotePayload ?? {}) && quotePayload && "Note" in quotePayload)) {
-    return NextResponse.json({ error: "Alpha Vantage quota or invalid response" }, { status: 502 });
+  let overview: AlphaOverview = {};
+  let quote: AlphaQuote = {};
+
+  if (type === "overview") {
+    const overviewUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${encodeURIComponent(
+      symbol
+    )}&apikey=${encodeURIComponent(apiKey)}`;
+    const overviewRes = await fetch(overviewUrl);
+    if (!overviewRes.ok) {
+      return NextResponse.json({ error: "Alpha Vantage request failed" }, { status: 502 });
+    }
+    overview = (await overviewRes.json().catch(() => null)) as AlphaOverview | null;
+    const remoteError =
+      overview?.Note || overview?.["Error Message"] || overview?.Information || null;
+    if (remoteError) {
+      return NextResponse.json({ error: remoteError }, { status: 502 });
+    }
+    if (!overview || Object.keys(overview).length === 0) {
+      return NextResponse.json({ error: "Alpha Vantage response leer." }, { status: 502 });
+    }
+  } else {
+    const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(
+      symbol
+    )}&apikey=${encodeURIComponent(apiKey)}`;
+    const quoteRes = await fetch(quoteUrl);
+    if (!quoteRes.ok) {
+      return NextResponse.json({ error: "Alpha Vantage request failed" }, { status: 502 });
+    }
+    const quotePayload = (await quoteRes.json().catch(() => null)) as
+      | { "Global Quote"?: AlphaQuote }
+      | { Note?: string }
+      | null;
+    const quoteError =
+      (quotePayload && "Note" in quotePayload && quotePayload.Note) ||
+      (quotePayload && "Error Message" in quotePayload && quotePayload["Error Message"]) ||
+      (quotePayload && "Information" in quotePayload && quotePayload.Information) ||
+      null;
+    if (quoteError) {
+      return NextResponse.json({ error: quoteError }, { status: 502 });
+    }
+    quote =
+      quotePayload && "Global Quote" in quotePayload && quotePayload["Global Quote"]
+        ? quotePayload["Global Quote"]
+        : {};
+    if (Object.keys(quote).length === 0) {
+      return NextResponse.json({ error: "Alpha Vantage response leer." }, { status: 502 });
+    }
   }
-
-  const quote = quotePayload && "Global Quote" in quotePayload ? quotePayload["Global Quote"] : undefined;
   const fetchedAt = new Date().toISOString();
 
   const tickerInfo = {
     source: "alpha_vantage" as const,
     symbol,
-    name: overview.Name ?? null,
-    exchange: overview.Exchange ?? null,
-    currency: overview.Currency ?? null,
-    sector: overview.Sector ?? null,
-    industry: overview.Industry ?? null,
-    description: overview.Description ?? null,
-    marketCap: overview.MarketCapitalization ?? null,
-    peRatio: overview.PERatio ?? null,
-    dividendYield: overview.DividendYield ?? null,
-    latestTradingDay: quote?.["07. latest trading day"] ?? null,
-    price: parseNumber(quote?.["05. price"]),
-    changePercent: quote?.["10. change percent"] ?? null,
+    overview: overview ?? {},
+    quote,
   };
 
   const updated = await updateProjectTicker(guard.user.id, id, { tickerInfo, fetchedAt });

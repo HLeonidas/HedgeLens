@@ -16,20 +16,16 @@ type Project = {
   tickerInfo?: {
     source: "alpha_vantage";
     symbol: string;
-    name?: string | null;
-    exchange?: string | null;
-    currency?: string | null;
-    sector?: string | null;
-    industry?: string | null;
-    description?: string | null;
-    marketCap?: string | null;
-    peRatio?: string | null;
-    dividendYield?: string | null;
-    latestTradingDay?: string | null;
-    price?: number | null;
-    changePercent?: string | null;
+    overview: Record<string, string>;
+    quote: Record<string, string>;
   } | null;
   tickerFetchedAt?: string | null;
+  massiveTickerInfo?: {
+    source: "massive";
+    symbol: string;
+    payload: Record<string, unknown>;
+  } | null;
+  massiveTickerFetchedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -116,6 +112,11 @@ export default function ProjectDetailPage() {
   const [deletePositionTarget, setDeletePositionTarget] = useState<Position | null>(null);
   const [tickerLoading, setTickerLoading] = useState(false);
   const [tickerError, setTickerError] = useState<string | null>(null);
+  const [massiveLoading, setMassiveLoading] = useState(false);
+  const [massiveError, setMassiveError] = useState<string | null>(null);
+  const [showTickerDetails, setShowTickerDetails] = useState(false);
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [colorDraft, setColorDraft] = useState("#2563eb");
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editBaseCurrency, setEditBaseCurrency] = useState("");
@@ -137,6 +138,10 @@ export default function ProjectDetailPage() {
   const [ratePct, setRatePct] = useState<number | "">(3);
   const [dividendYieldPct, setDividendYieldPct] = useState<number | "">(0);
   const [ratio, setRatio] = useState<number | "">(1);
+  const [positionCreateMode, setPositionCreateMode] = useState<"manual" | "lookup">("lookup");
+  const [lookupValue, setLookupValue] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
 
   const canAdd = useMemo(() => {
     const baseValid = Boolean(isin.trim()) && Number(size) > 0 && entryPrice !== "";
@@ -196,12 +201,16 @@ export default function ProjectDetailPage() {
     }
   }
 
-  async function handleFetchTickerInfo() {
+  async function handleFetchTickerInfo(type: "overview" | "quote") {
     if (!projectId) return;
     setTickerLoading(true);
     setTickerError(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/ticker`, { method: "POST" });
+      const response = await fetch(`/api/projects/${projectId}/ticker`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
       const payload = (await response.json().catch(() => null)) as
         | { tickerInfo?: Project["tickerInfo"]; fetchedAt?: string; error?: string }
         | null;
@@ -228,6 +237,43 @@ export default function ProjectDetailPage() {
       setTickerLoading(false);
     }
   }
+
+  async function handleFetchMassiveInfo() {
+    if (!projectId) return;
+    setMassiveLoading(true);
+    setMassiveError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/ticker-massive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: project?.underlyingSymbol ?? "" }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { tickerInfo?: Project["massiveTickerInfo"]; fetchedAt?: string; error?: string }
+        | null;
+
+      if (!response.ok || !payload || payload.error) {
+        throw new Error(payload?.error ?? "Unable to fetch Massive data");
+      }
+
+      if (payload.tickerInfo) {
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                massiveTickerInfo: payload.tickerInfo ?? null,
+                massiveTickerFetchedAt: payload.fetchedAt ?? new Date().toISOString(),
+              }
+            : prev
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to fetch Massive data";
+      setMassiveError(message);
+    } finally {
+      setMassiveLoading(false);
+    }
+  }
   function resetPositionForm() {
     setIsin("");
     setName("");
@@ -243,6 +289,61 @@ export default function ProjectDetailPage() {
     setRatePct(3);
     setDividendYieldPct(0);
     setRatio(1);
+    setLookupValue("");
+    setLookupError(null);
+    setPositionCreateMode("lookup");
+  }
+
+  async function handleLookupInstrument() {
+    if (!lookupValue.trim()) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    try {
+      const response = await fetch("/api/isin/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isin: lookupValue.trim() }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            isin?: string;
+            name?: string;
+            type?: "call" | "put";
+            strike?: number;
+            expiry?: string;
+            currency?: string;
+            ratio?: number;
+            underlying?: string;
+            price?: number;
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload || payload.error) {
+        throw new Error(payload?.error ?? "Lookup fehlgeschlagen");
+      }
+
+      if (!payload.isin) {
+        throw new Error("Ungültige Antwort vom ISIN-Service.");
+      }
+
+      setIsin(payload.isin);
+      setName(payload.name ?? "");
+      setSide(payload.type ?? "call");
+      setStrike(payload.strike ?? "");
+      setExpiry(payload.expiry ?? "");
+      setRatio(payload.ratio ?? 1);
+      setUnderlyingSymbol(payload.underlying ?? "");
+      if (payload.price !== undefined) {
+        setPricingMode("market");
+        setMarketPrice(payload.price);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Lookup fehlgeschlagen";
+      setLookupError(message);
+    } finally {
+      setLookupLoading(false);
+    }
   }
 
   async function handleSavePosition() {
@@ -376,6 +477,7 @@ export default function ProjectDetailPage() {
     setEditBaseCurrency(project.baseCurrency ?? "EUR");
     setEditUnderlyingSymbol(project.underlyingSymbol ?? "");
     setEditColor(project.color ?? "#2563eb");
+    setColorDraft(project.color ?? "#2563eb");
   }, [project]);
 
   function openAddPosition() {
@@ -446,6 +548,41 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function handleUpdateColor() {
+    if (!projectId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          color: colorDraft.trim() || undefined,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | { project?: Project }
+        | null;
+
+      if (!response.ok) {
+        const errorMessage =
+          payload && "error" in payload
+            ? payload.error ?? "Unable to update project"
+            : "Unable to update project";
+        throw new Error(errorMessage);
+      }
+
+      setShowColorModal(false);
+      await loadProject();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update project";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleDeleteProject() {
     if (!projectId) return;
     setLoading(true);
@@ -506,6 +643,71 @@ export default function ProjectDetailPage() {
     return `https://s.tradingview.com/widgetembed/?symbol=${encoded}&interval=D&style=1&locale=en&hide_top_toolbar=1&hide_side_toolbar=1&allow_symbol_change=1&withdateranges=1&hideideas=1&theme=light`;
   }
 
+  function withMassiveApiKey(url: string) {
+    try {
+      const encoded = encodeURIComponent(url);
+      return `/api/massive/logo?url=${encoded}`;
+    } catch {
+      return url;
+    }
+  }
+
+  function getMassiveLogo(payload?: Record<string, unknown> | null) {
+    if (!payload) return null;
+    const results =
+      (payload as Record<string, unknown>).results &&
+      typeof (payload as Record<string, unknown>).results === "object"
+        ? ((payload as Record<string, unknown>).results as Record<string, unknown>)
+        : payload;
+    const branding = (results as { branding?: Record<string, unknown> }).branding;
+    const iconUrl = branding?.icon_url || (branding as any)?.logo_url;
+    if (typeof iconUrl === "string" && iconUrl.trim()) return iconUrl;
+    if (typeof (results as any).icon_url === "string") return (results as any).icon_url;
+    if (typeof (results as any).logo_url === "string") return (results as any).logo_url;
+    return null;
+  }
+
+  function formatNumber(value: string, options?: Intl.NumberFormatOptions) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return value;
+    return new Intl.NumberFormat("de-DE", options).format(parsed);
+  }
+
+  function formatCompact(value?: string) {
+    if (!value) return "—";
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return value;
+    return new Intl.NumberFormat("de-DE", {
+      notation: "compact",
+      maximumFractionDigits: 2,
+    }).format(parsed);
+  }
+
+  function formatPercentValue(value?: string) {
+    if (!value) return "—";
+    if (value.includes("%")) return value;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return value;
+    return new Intl.NumberFormat("de-DE", {
+      style: "percent",
+      maximumFractionDigits: 2,
+    }).format(parsed);
+  }
+
+  function formatMaybeNumeric(value?: string) {
+    if (!value) return "—";
+    if (value.includes("%")) return value;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return value;
+    return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(parsed);
+  }
+
+  function parseQuoteNumber(value?: string) {
+    if (!value) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
   if (!project) {
     return (
       <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 flex items-center justify-center">
@@ -529,12 +731,45 @@ export default function ProjectDetailPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-center gap-4">
-              <div
-                className={`h-12 w-12 rounded-xl flex items-center justify-center ${projectColor(project.id).className} ${projectColor(project.id).textClass}`}
-                style={projectColor(project.id).style}
-              >
-                <span className="material-symbols-outlined text-xl">folder</span>
-              </div>
+              {(() => {
+                const logoUrl = getMassiveLogo(project.massiveTickerInfo?.payload ?? null);
+                const colorMeta = projectColor(project.id);
+                const baseClasses = "h-12 w-12 aspect-square rounded-xl flex items-center justify-center overflow-hidden";
+                const className = logoUrl
+                  ? baseClasses
+                  : `${baseClasses} ${colorMeta.className} ${colorMeta.textClass}`;
+                const style = logoUrl ? undefined : colorMeta.style;
+
+                return (
+                  <div
+                    className={className}
+                    style={style}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setShowColorModal(true)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setShowColorModal(true);
+                      }
+                    }}
+                  >
+                    {logoUrl ? (
+                      <img
+                        src={withMassiveApiKey(logoUrl)}
+                        alt={project.name}
+                        className="h-full w-full object-contain bg-transparent"
+                      />
+                    ) : (
+                      <span className="text-[10px] font-bold tracking-widest leading-none">
+                        {project.underlyingSymbol
+                          ? project.underlyingSymbol.replace(/\s+/g, "").slice(-4).toUpperCase()
+                          : "—"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               <div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
                   {project.name}
@@ -546,38 +781,57 @@ export default function ProjectDetailPage() {
                     Strategy container for warrant positions and analytics.
                   </p>
                 )}
-                {project.underlyingSymbol ? (
-                  <p className="text-xs text-slate-500 mt-1">
-                    Underlying:{" "}
-                    <span className="font-semibold text-slate-700">
-                      {project.underlyingSymbol}
-                    </span>
-                  </p>
-                ) : null}
+                {project.underlyingSymbol ? null : null}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleFetchTickerInfo}
+                    onClick={() => handleFetchTickerInfo("overview")}
                     disabled={!project.underlyingSymbol || tickerLoading}
                     className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
                   >
                     <span className="material-symbols-outlined text-base">travel_explore</span>
-                    {tickerLoading ? "Lädt..." : "Ticker-Daten laden"}
+                    {tickerLoading ? "Lädt..." : "Overview laden"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFetchTickerInfo("quote")}
+                    disabled={!project.underlyingSymbol || tickerLoading}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-base">payments</span>
+                    {tickerLoading ? "Lädt..." : "Preis laden"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFetchMassiveInfo}
+                    disabled={!project.underlyingSymbol || massiveLoading}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-base">insights</span>
+                    {massiveLoading ? "Lädt..." : "Massive laden"}
                   </button>
                   {project.tickerFetchedAt ? (
                     <span className="text-[11px] text-slate-400">
                       Letztes Update: {new Date(project.tickerFetchedAt).toLocaleString()}
                     </span>
                   ) : null}
+                  {project.massiveTickerFetchedAt ? (
+                    <span className="text-[11px] text-slate-400">
+                      Massive: {new Date(project.massiveTickerFetchedAt).toLocaleString()}
+                    </span>
+                  ) : null}
                 </div>
                 {tickerError ? (
                   <p className="mt-2 text-xs text-rose-600">{tickerError}</p>
                 ) : null}
+                {massiveError ? (
+                  <p className="mt-2 text-xs text-rose-600">{massiveError}</p>
+                ) : null}
               </div>
             </div>
             <Menu as="div" className="relative inline-flex items-center">
-              <Menu.Button className="p-2 rounded-lg border border-border-light text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
-                <span className="material-symbols-outlined text-lg">more_vert</span>
+              <Menu.Button className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-light text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+                <span className="material-symbols-outlined text-lg leading-none">more_vert</span>
               </Menu.Button>
               <Menu.Items
                 anchor="bottom end"
@@ -624,64 +878,178 @@ export default function ProjectDetailPage() {
 
           {project.tickerInfo ? (
             <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-bold uppercase text-slate-500">Ticker Overview</p>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  {project.tickerInfo.name ?? project.tickerInfo.symbol} ·{" "}
-                  {project.tickerInfo.symbol}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {project.tickerInfo.exchange ?? "—"} ·{" "}
-                  {project.tickerInfo.currency ?? "—"}
-                </p>
-              </div>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs text-slate-600">
-                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase text-slate-400">Price</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {project.tickerInfo.price !== null && project.tickerInfo.price !== undefined
-                      ? `${project.tickerInfo.price.toFixed(2)}`
-                      : "—"}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    {project.tickerInfo.changePercent ?? "—"}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase text-slate-400">Market Cap</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {project.tickerInfo.marketCap ?? "—"}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    PE {project.tickerInfo.peRatio ?? "—"}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase text-slate-400">Sector</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {project.tickerInfo.sector ?? "—"}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    {project.tickerInfo.industry ?? "—"}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase text-slate-400">Dividend</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {project.tickerInfo.dividendYield ?? "—"}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Last Trade {project.tickerInfo.latestTradingDay ?? "—"}
-                  </p>
-                </div>
-              </div>
-              {project.tickerInfo.description ? (
-                <p className="mt-3 text-xs text-slate-500 line-clamp-3">
-                  {project.tickerInfo.description}
-                </p>
-              ) : null}
+              {(() => {
+                const overview = project.tickerInfo?.overview ?? {};
+                const quote = project.tickerInfo?.quote ?? {};
+                const nameValue = overview.Name ?? project.tickerInfo?.symbol ?? "—";
+                const exchangeValue = overview.Exchange ?? "—";
+                const currencyValue = overview.Currency ?? "—";
+                const projectCurrency = project.baseCurrency ?? "EUR";
+                const currencyMismatch =
+                  currencyValue !== "—" &&
+                  projectCurrency &&
+                  currencyValue.toUpperCase() !== projectCurrency.toUpperCase();
+                const priceValue = quote["05. price"];
+                const changePercentValue = quote["10. change percent"];
+                const marketCapValue = overview.MarketCapitalization;
+                const peValue = overview.PERatio;
+                const sectorValue = overview.Sector;
+                const industryValue = overview.Industry;
+                const dividendValue = overview.DividendYield;
+                const tradingDayValue = quote["07. latest trading day"];
+
+                return (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs font-bold uppercase text-slate-500">Ticker Overview</p>
+                      <p className="text-xs text-slate-500">
+                        {exchangeValue} · {currencyValue}
+                      </p>
+                      {currencyMismatch ? (
+                        <p className="text-[11px] text-amber-600">
+                          Hinweis: Ticker in {currencyValue}, Projektbasis {projectCurrency}.
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs text-slate-600">
+                      <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] uppercase text-slate-400">Price</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {priceValue ? formatNumber(priceValue) : "—"}{" "}
+                          <span className="text-[10px] text-slate-400">{currencyValue}</span>
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {changePercentValue ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] uppercase text-slate-400">Market Cap</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatCompact(marketCapValue)}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          PE {formatMaybeNumeric(peValue)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] uppercase text-slate-400">Sector</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {sectorValue ?? "—"}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {industryValue ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] uppercase text-slate-400">Dividend</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatPercentValue(dividendValue)}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Last Trade {tradingDayValue ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowTickerDetails((prev) => !prev)}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          {showTickerDetails ? "expand_less" : "expand_more"}
+                        </span>
+                        {showTickerDetails ? "Details ausblenden" : "Mehr anzeigen"}
+                      </button>
+                    </div>
+                    {showTickerDetails ? (
+                      <>
+                        {overview.Description ? (
+                          <p className="mt-3 text-xs text-slate-500 line-clamp-3">
+                            {overview.Description}
+                          </p>
+                        ) : null}
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <div className="rounded-xl border border-slate-200/70 bg-slate-50 p-3">
+                            <p className="text-[11px] font-bold uppercase text-slate-500">
+                              Overview (full)
+                            </p>
+                            <div className="mt-2 max-h-64 overflow-y-auto text-[11px] text-slate-600 custom-scrollbar">
+                              {Object.keys(overview).length === 0 ? (
+                                <p className="text-slate-400">No overview data.</p>
+                              ) : (
+                                <table className="min-w-full">
+                                  <tbody>
+                                    {Object.entries(overview)
+                                      .sort(([a], [b]) => a.localeCompare(b))
+                                      .map(([key, value]) => (
+                                        <tr key={key} className="border-b border-slate-200/70">
+                                          <td className="py-1 pr-2 align-top font-semibold text-slate-500">
+                                            {key}
+                                          </td>
+                                          <td className="py-1 text-slate-700">
+                                            {formatMaybeNumeric(value)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200/70 bg-slate-50 p-3">
+                            <p className="text-[11px] font-bold uppercase text-slate-500">
+                              Global Quote (full)
+                            </p>
+                            <div className="mt-2 max-h-64 overflow-y-auto text-[11px] text-slate-600 custom-scrollbar">
+                              {Object.keys(quote).length === 0 ? (
+                                <p className="text-slate-400">No quote data.</p>
+                              ) : (
+                                <table className="min-w-full">
+                                  <tbody>
+                                    {Object.entries(quote)
+                                      .sort(([a], [b]) => a.localeCompare(b))
+                                      .map(([key, value]) => (
+                                        <tr key={key} className="border-b border-slate-200/70">
+                                          <td className="py-1 pr-2 align-top font-semibold text-slate-500">
+                                            {key}
+                                          </td>
+                                          <td className="py-1 text-slate-700">
+                                            {formatMaybeNumeric(value)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </>
+                );
+              })()}
             </div>
           ) : null}
+
+          {/* {project.massiveTickerInfo ? (
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase text-slate-500">Massive Payload (raw)</p>
+                {project.massiveTickerFetchedAt ? (
+                  <span className="text-[11px] text-slate-400">
+                    {new Date(project.massiveTickerFetchedAt).toLocaleString()}
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-3 max-h-72 overflow-y-auto rounded-lg border border-slate-200/70 bg-slate-50 p-3 text-[11px] text-slate-600 custom-scrollbar">
+                <pre className="whitespace-pre-wrap break-words">
+                  {JSON.stringify(project.massiveTickerInfo.payload, null, 2)}
+                </pre>
+              </div>
+            </div>
+          ) : null} */}
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-surface-light border border-border-light p-4 rounded-xl">
@@ -714,6 +1082,60 @@ export default function ProjectDetailPage() {
                 {valueSummary.totalMarketValue.toFixed(2)}
               </p>
             </div>
+            {/* <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Ticker Movement</p>
+              {project.tickerInfo?.quote ? (
+                (() => {
+                  const quote = project.tickerInfo?.quote ?? {};
+                  const open = parseQuoteNumber(quote["02. open"]);
+                  const high = parseQuoteNumber(quote["03. high"]);
+                  const low = parseQuoteNumber(quote["04. low"]);
+                  const price = parseQuoteNumber(quote["05. price"]);
+                  const prevClose = parseQuoteNumber(quote["08. previous close"]);
+                  const values = [
+                    { label: "Open", value: open },
+                    { label: "High", value: high },
+                    { label: "Low", value: low },
+                    { label: "Close", value: prevClose },
+                    { label: "Price", value: price },
+                  ].filter((item) => item.value !== null) as Array<{ label: string; value: number }>;
+
+                  if (values.length === 0) {
+                    return <p className="text-sm text-slate-400 mt-2">Keine Quote-Daten.</p>;
+                  }
+
+                  const min = Math.min(...values.map((v) => v.value));
+                  const max = Math.max(...values.map((v) => v.value));
+                  const range = max - min || 1;
+
+                  return (
+                    <div className="mt-3 space-y-2">
+                      {values.map((item) => {
+                        const width = ((item.value - min) / range) * 100;
+                        return (
+                          <div key={item.label} className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className="w-10 uppercase">{item.label}</span>
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-slate-100">
+                                <div
+                                  className="h-2 rounded-full bg-slate-900"
+                                  style={{ width: `${Math.max(6, width)}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 text-right text-slate-700">
+                              {formatMaybeNumeric(item.value.toString())}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              ) : (
+                <p className="text-sm text-slate-400 mt-2">Preis laden, um Bewegung zu sehen.</p>
+              )}
+            </div> */}
           </div>
         </div>
 
@@ -895,7 +1317,7 @@ export default function ProjectDetailPage() {
               <iframe
                 title="TradingView chart"
                 src={tradingViewSrc(project.underlyingSymbol)}
-                className="w-full h-[420px]"
+                className="w-full h-[560px]"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               />
             </div>
@@ -944,6 +1366,59 @@ export default function ProjectDetailPage() {
             </button>
           </div>
           <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            {!editingPositionId ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPositionCreateMode("manual")}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    positionCreateMode === "manual"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                >
+                  Manuell
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPositionCreateMode("lookup")}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    positionCreateMode === "lookup"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                >
+                  WKN / ISIN
+                </button>
+              </div>
+            ) : null}
+
+            {!editingPositionId && positionCreateMode === "lookup" ? (
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase text-slate-500">
+                  WKN oder ISIN
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={lookupValue}
+                    onChange={(event) => setLookupValue(event.target.value)}
+                    className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                    placeholder="z.B. DE000... oder WKN"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleLookupInstrument}
+                    disabled={lookupLoading}
+                    className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-60"
+                  >
+                    {lookupLoading ? "Suche..." : "Lookup"}
+                  </button>
+                </div>
+                {lookupError ? (
+                  <p className="text-xs text-rose-600">{lookupError}</p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-xs font-bold uppercase text-slate-500">Name</label>
@@ -1027,7 +1502,9 @@ export default function ProjectDetailPage() {
                   className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                 />
               </div>
-            ) : (
+            ) : null}
+
+            {pricingMode === "model" ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-500">Underlying symbol</label>
@@ -1121,7 +1598,7 @@ export default function ProjectDetailPage() {
                   />
                 </div>
               </div>
-            )}
+            ) : null}
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
           </div>
           <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
@@ -1359,6 +1836,75 @@ export default function ProjectDetailPage() {
               disabled={loading}
             >
               Position löschen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
+          showColorModal ? "" : "hidden"
+        }`}
+        onClick={() => setShowColorModal(false)}
+      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showColorModal ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setShowColorModal(false)}
+        aria-hidden={!showColorModal}
+      >
+        <div
+          className={`w-full max-w-sm bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            showColorModal ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Projektfarbe</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Wählen Sie eine Farbe für das Projekt.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowColorModal(false)}
+              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={colorDraft}
+                onChange={(event) => setColorDraft(event.target.value)}
+                className="h-12 w-16 rounded-lg border border-border-light bg-transparent p-1"
+              />
+              <input
+                value={colorDraft}
+                onChange={(event) => setColorDraft(event.target.value)}
+                className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
+              />
+            </div>
+          </div>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowColorModal(false)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={handleUpdateColor}
+              className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
+              disabled={loading}
+            >
+              {loading ? "Speichern..." : "Farbe speichern"}
             </button>
           </div>
         </div>

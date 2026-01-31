@@ -11,6 +11,11 @@ type Project = {
 	riskProfile: "conservative" | "balanced" | "aggressive" | null;
 	underlyingSymbol?: string | null;
 	color?: string | null;
+  massiveTickerInfo?: {
+    source: "massive";
+    symbol: string;
+    payload: Record<string, unknown>;
+  } | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -55,8 +60,13 @@ export default function ProjectsPage() {
   const [description, setDescription] = useState("");
   const [underlyingSymbol, setUnderlyingSymbol] = useState("");
   const [color, setColor] = useState("#2563eb");
+  const [createMode, setCreateMode] = useState<"manual" | "ticker">("ticker");
+  const [tickerSymbol, setTickerSymbol] = useState("");
 
-	const canCreate = useMemo(() => Boolean(name.trim()), [name]);
+	const canCreate = useMemo(() => {
+    if (createMode === "ticker") return Boolean(tickerSymbol.trim());
+    return Boolean(name.trim());
+  }, [createMode, name, tickerSymbol]);
 
 	async function loadProjects() {
 		setIsLoading(true);
@@ -112,18 +122,28 @@ export default function ProjectsPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          baseCurrency: baseCurrency.trim(),
-          riskProfile: riskProfile || undefined,
-          description: description.trim() || undefined,
-          underlyingSymbol: underlyingSymbol.trim() || undefined,
-          color: color.trim() || undefined,
-        }),
-      });
+      const response =
+        createMode === "ticker"
+          ? await fetch("/api/projects/from-ticker", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                symbol: tickerSymbol.trim(),
+                color: color.trim() || undefined,
+              }),
+            })
+          : await fetch("/api/projects", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: name.trim(),
+                baseCurrency: baseCurrency.trim(),
+                riskProfile: riskProfile || undefined,
+                description: description.trim() || undefined,
+                underlyingSymbol: underlyingSymbol.trim() || undefined,
+                color: color.trim() || undefined,
+              }),
+            });
 
 			const payload = (await response.json().catch(() => null)) as
 				| { error?: string }
@@ -141,7 +161,9 @@ export default function ProjectsPage() {
       setRiskProfile("");
       setDescription("");
       setUnderlyingSymbol("");
+      setTickerSymbol("");
       setColor("#2563eb");
+      setCreateMode("manual");
       setShowCreate(false);
       if (createdProject?.id) {
         router.push(`/projects/${createdProject.id}`);
@@ -232,6 +254,29 @@ export default function ProjectsPage() {
     if (!symbol) return "—";
     const trimmed = symbol.replace(/\s+/g, "");
     return trimmed.slice(-4).toUpperCase();
+  }
+
+  function getMassiveIcon(payload?: Record<string, unknown> | null) {
+    if (!payload) return null;
+    const results =
+      (payload as Record<string, unknown>).results &&
+      typeof (payload as Record<string, unknown>).results === "object"
+        ? ((payload as Record<string, unknown>).results as Record<string, unknown>)
+        : payload;
+    const branding = (results as { branding?: Record<string, unknown> }).branding;
+    const iconUrl = branding?.icon_url || branding?.logo_url;
+    if (typeof iconUrl === "string" && iconUrl.trim()) return iconUrl;
+    if (typeof (results as any).icon_url === "string") return (results as any).icon_url;
+    if (typeof (results as any).logo_url === "string") return (results as any).logo_url;
+    return null;
+  }
+
+  function withMassiveProxy(url: string) {
+    try {
+      return `/api/massive/logo?url=${encodeURIComponent(url)}`;
+    } catch {
+      return url;
+    }
   }
 
 	function handleRowClick(projectId: string) {
@@ -363,17 +408,38 @@ export default function ProjectsPage() {
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div
-                              className={`w-8 h-8 rounded flex items-center justify-center ${colorMeta.className ?? ""} ${colorMeta.textClass ?? ""}`}
-                              style={colorMeta.style}
-                            >
-                              <span className="text-[10px] font-bold tracking-widest">
-                                {underlyingTag(project.underlyingSymbol)}
-                              </span>
-                            </div>
+                            {(() => {
+                              const logoUrl = getMassiveIcon(project.massiveTickerInfo?.payload ?? null);
+                              const baseClasses = "w-8 h-8 rounded flex items-center justify-center overflow-hidden";
+                              const className = logoUrl
+                                ? baseClasses
+                                : `${baseClasses} ${colorMeta.className ?? ""} ${colorMeta.textClass ?? ""}`;
+                              const style = logoUrl ? undefined : colorMeta.style;
+                              return (
+                                <div className={className} style={style}>
+                                  {logoUrl ? (
+                                    <img
+                                      src={withMassiveProxy(logoUrl)}
+                                      alt={project.name}
+                                      className="h-full w-full object-contain"
+                                    />
+                                  ) : (
+                                    <span className="text-[10px] font-bold tracking-widest">
+                                      {underlyingTag(project.underlyingSymbol)}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <div className="flex flex-col">
                               <span className="text-sm font-semibold text-slate-900">
                                 {project.name}
+                                {project.underlyingSymbol ? (
+                                  <span className="text-xs text-slate-500">
+                                    {" "}
+                                    · {project.underlyingSymbol.replace(/\s+/g, "").toUpperCase()}
+                                  </span>
+                                ) : null}
                               </span>
                               <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
                                 ID: {project.id.slice(0, 6).toUpperCase()}
@@ -486,7 +552,7 @@ export default function ProjectsPage() {
           }`}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="p-6 border-b border-border-light flex items-center justify-between">
+        <div className="p-6 border-b border-border-light flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold">Neues Projekt erstellen</h2>
             <p className="text-xs text-slate-500">Konfigurieren Sie Ihr Portfolio-Tracking</p>
@@ -500,101 +566,157 @@ export default function ProjectsPage() {
           </button>
         </div>
         <div className="flex-1 p-6 overflow-y-auto space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-              Projektname
-            </label>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-              placeholder="z.B. Mein erstes Projekt"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCreateMode("manual")}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                createMode === "manual"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              Manuell
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateMode("ticker")}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                createMode === "ticker"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              Aus Ticker
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                Basiswährung
-              </label>
-              <input
-                value={baseCurrency}
-                onChange={(event) => setBaseCurrency(event.target.value)}
-                className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
-                placeholder="EUR"
-              />
+
+          {createMode === "ticker" ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Ticker
+                </label>
+                <input
+                  value={tickerSymbol}
+                  onChange={(event) => setTickerSymbol(event.target.value)}
+                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  placeholder="z.B. NASDAQ:COIN oder COIN"
+                />
+              </div>
+              <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
+                <div className="flex gap-3">
+                  <span className="material-symbols-outlined text-slate-600">info</span>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Das Projekt wird automatisch aus den Alpha Vantage Daten erzeugt. Name,
+                    Beschreibung und Währung werden übernommen.
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Projektname
+                </label>
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  placeholder="z.B. Mein erstes Projekt"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                    Basiswährung
+                  </label>
+                  <input
+                    value={baseCurrency}
+                    onChange={(event) => setBaseCurrency(event.target.value)}
+                    className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
+                    placeholder="EUR"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                    Risikoprofil
+                  </label>
+                  <select
+                    value={riskProfile}
+                    onChange={(event) =>
+                      setRiskProfile(
+                        event.target.value as "" | "conservative" | "balanced" | "aggressive"
+                      )
+                    }
+                    className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  >
+                    <option value="">Custom</option>
+                    <option value="conservative">Konservativ</option>
+                    <option value="balanced">Moderat</option>
+                    <option value="aggressive">Aggressiv</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-[auto,1fr] gap-3 items-center">
+                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Projektfarbe
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
+                  />
+                  <input
+                    value={color}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
+                    placeholder="#2563eb"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Underlying Asset (Ticker)
+                </label>
+                <input
+                  value={underlyingSymbol}
+                  onChange={(event) => setUnderlyingSymbol(event.target.value)}
+                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  placeholder="z.B. NASDAQ:COIN"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Beschreibung (Optional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+                  rows={4}
+                  placeholder="Ziele und Strategie für dieses Projekt..."
+                />
+              </div>
+              <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
+                <div className="flex gap-3">
+                  <span className="material-symbols-outlined text-slate-600">info</span>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Nach dem Erstellen können Sie ISINs oder Ticker hinzufügen, um Positionen zu
+                    verfolgen und die automatische Analyse zu starten.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+          {error ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {error}
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                Risikoprofil
-              </label>
-              <select
-                value={riskProfile}
-                onChange={(event) =>
-                  setRiskProfile(
-                    event.target.value as "" | "conservative" | "balanced" | "aggressive"
-                  )
-                }
-                className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-              >
-                <option value="">Custom</option>
-                <option value="conservative">Konservativ</option>
-                <option value="balanced">Moderat</option>
-                <option value="aggressive">Aggressiv</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-[auto,1fr] gap-3 items-center">
-            <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-              Projektfarbe
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="color"
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-                className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
-              />
-              <input
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-                className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
-                placeholder="#2563eb"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-              Underlying Asset (Ticker)
-            </label>
-            <input
-              value={underlyingSymbol}
-              onChange={(event) => setUnderlyingSymbol(event.target.value)}
-              className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-              placeholder="z.B. NASDAQ:COIN"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-              Beschreibung (Optional)
-            </label>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-              rows={4}
-              placeholder="Ziele und Strategie für dieses Projekt..."
-            />
-          </div>
-          <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
-            <div className="flex gap-3">
-              <span className="material-symbols-outlined text-slate-600">info</span>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Nach dem Erstellen können Sie ISINs oder Ticker hinzufügen, um Positionen zu
-                verfolgen und die automatische Analyse zu starten.
-              </p>
-            </div>
-          </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          ) : null}
         </div>
         <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
           <button
