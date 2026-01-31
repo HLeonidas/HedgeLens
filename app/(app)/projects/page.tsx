@@ -348,12 +348,15 @@ export default function ProjectsPage() {
 							<div className="flex items-center gap-2">
 								<button
 									type="button"
-								onClick={() => setShowCreate((prev) => !prev)}
-								className="px-5 py-3 rounded-lg bg-primary hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
-							>
-								{showCreate ? "Close" : "Create Project"}
-							</button>
-						</div>
+									onClick={() => setShowCreate((prev) => !prev)}
+									className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+								>
+									<span className="material-symbols-outlined text-base">
+										{showCreate ? "close" : "add"}
+									</span>
+									{showCreate ? "Close" : "Create Project"}
+								</button>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -369,11 +372,11 @@ export default function ProjectsPage() {
 							<table className="w-full min-w-[980px] text-left border-collapse">
 								<thead>
 									<tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
-										<th className="px-6 py-4">Projektname</th>
-										<th className="px-6 py-4">Letzter Preis</th>
-										<th className="px-6 py-4">Risikoprofil</th>
+										<th className="px-6 py-4">Project</th>
+										<th className="px-6 py-4">Last Price</th>
+										<th className="px-6 py-4">Risk Profile</th>
 										<th className="px-6 py-4">Put/Call Ratio</th>
-										<th className="px-6 py-4">Positionen</th>
+										<th className="px-6 py-4">Positions</th>
 										<th className="px-6 py-4 text-right">Info</th>
 									</tr>
 								</thead>
@@ -413,8 +416,30 @@ export default function ProjectsPage() {
 						</div>
 					</div>
 				) : projects.length === 0 ? (
-					<div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-						No projects yet. Create your first project to begin tracking positions.
+					<div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-10 text-slate-600">
+						<div className="mx-auto flex max-w-xl flex-col items-center text-center">
+							<div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 shadow-inner">
+								<span className="material-symbols-outlined text-[28px]">workspaces</span>
+							</div>
+							<h3 className="mt-4 text-lg font-semibold text-slate-900">
+								Create your first project
+							</h3>
+							<p className="mt-2 text-sm text-slate-500">
+								A project is a strategy workspace where you group positions, track ratios,
+								and review analytics. Create one to start organizing your trades.
+							</p>
+							<p className="mt-3 text-xs text-slate-400">
+								Tip: Use one project per underlying or strategy.
+							</p>
+							<button
+								type="button"
+								onClick={() => setShowCreate(true)}
+								className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+							>
+								<span className="material-symbols-outlined text-base">add</span>
+								Create Project
+							</button>
+						</div>
 					</div>
 				) : filteredProjects.length === 0 ? (
 					<div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
@@ -437,11 +462,11 @@ export default function ProjectsPage() {
               <table className="w-full min-w-[980px] text-left border-collapse">
                 <thead>
                   <tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
-                    <th className="px-6 py-4">Projektname</th>
-                    <th className="px-6 py-4">Letzter Preis</th>
-                    <th className="px-6 py-4">Risikoprofil</th>
+                    <th className="px-6 py-4">Project</th>
+                    <th className="px-6 py-4">Last Price</th>
+                    <th className="px-6 py-4">Risk Profile</th>
                     <th className="px-6 py-4">Put/Call Ratio</th>
-                    <th className="px-6 py-4">Positionen</th>
+                    <th className="px-6 py-4">Positions</th>
                     <th className="px-6 py-4 text-right">
                       <span className="inline-flex items-center gap-2 text-slate-400">
                         Info
@@ -583,7 +608,7 @@ export default function ProjectsPage() {
             <div className="px-6 py-4 bg-slate-50 border-t border-border-light flex items-center justify-between text-xs font-medium text-slate-500">
               <span>
                 Zeige {filteredProjects.length > 0 ? 1 : 0}-{filteredProjects.length} von{" "}
-                {projects.length} Projekten
+                {projects.length} projects
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -591,15 +616,15 @@ export default function ProjectsPage() {
                   className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
                   disabled
                 >
-                  Zurück
+                  Previous
                 </button>
-                <button
-                  type="button"
-                  className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
-                  disabled
-                >
-                  Weiter
-                </button>
+                  <button
+                    type="button"
+                    className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
+                    disabled
+                  >
+                    Next
+                  </button>
               </div>
             </div>
           </div>
@@ -628,8 +653,8 @@ export default function ProjectsPage() {
         >
         <div className="p-6 border-b border-border-light flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold">Neues Projekt erstellen</h2>
-            <p className="text-xs text-slate-500">Konfigurieren Sie Ihr Portfolio-Tracking</p>
+            <h2 className="text-xl font-bold">Create new project</h2>
+            <p className="text-xs text-slate-500">Configure your portfolio tracking</p>
           </div>
           <button
             type="button"
@@ -650,7 +675,7 @@ export default function ProjectsPage() {
                   : "border-slate-200 bg-white text-slate-600"
               }`}
             >
-              Manuell
+              Manual
             </button>
             <button
               type="button"
@@ -661,7 +686,7 @@ export default function ProjectsPage() {
                   : "border-slate-200 bg-white text-slate-600"
               }`}
             >
-              Aus Ticker
+              From ticker
             </button>
           </div>
 
@@ -675,15 +700,15 @@ export default function ProjectsPage() {
                   value={tickerSymbol}
                   onChange={(event) => setTickerSymbol(event.target.value)}
                   className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  placeholder="z.B. NASDAQ:COIN oder COIN"
+                  placeholder="e.g. NASDAQ:COIN or COIN"
                 />
               </div>
               <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
                 <div className="flex gap-3">
                   <span className="material-symbols-outlined text-slate-600">info</span>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Das Projekt wird automatisch aus den Alpha Vantage Daten erzeugt. Name,
-                    Beschreibung und Währung werden übernommen.
+                    The project is generated automatically from Massive API data. Name,
+                    description, and currency are taken over.
                   </p>
                 </div>
               </div>
@@ -692,19 +717,19 @@ export default function ProjectsPage() {
             <>
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Projektname
+                  Project name
                 </label>
                 <input
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  placeholder="z.B. Mein erstes Projekt"
+                  placeholder="e.g. My first project"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                    Basiswährung
+                    Base currency
                   </label>
                   <input
                     value={baseCurrency}
@@ -715,7 +740,7 @@ export default function ProjectsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                    Risikoprofil
+                    Risk profile
                   </label>
                   <select
                     value={riskProfile}
@@ -727,15 +752,15 @@ export default function ProjectsPage() {
                     className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                   >
                     <option value="">Custom</option>
-                    <option value="conservative">Konservativ</option>
-                    <option value="balanced">Moderat</option>
-                    <option value="aggressive">Aggressiv</option>
+                    <option value="conservative">Conservative</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="aggressive">Aggressive</option>
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-[auto,1fr] gap-3 items-center">
                 <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Projektfarbe
+                  Project color
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -760,27 +785,27 @@ export default function ProjectsPage() {
                   value={underlyingSymbol}
                   onChange={(event) => setUnderlyingSymbol(event.target.value)}
                   className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  placeholder="z.B. NASDAQ:COIN"
+                  placeholder="e.g. NASDAQ:COIN"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Beschreibung (Optional)
+                  Description (optional)
                 </label>
                 <textarea
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
                   rows={4}
-                  placeholder="Ziele und Strategie für dieses Projekt..."
+                  placeholder="Goals and strategy for this project..."
                 />
               </div>
               <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
                 <div className="flex gap-3">
                   <span className="material-symbols-outlined text-slate-600">info</span>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Nach dem Erstellen können Sie ISINs oder Ticker hinzufügen, um Positionen zu
-                    verfolgen und die automatische Analyse zu starten.
+                    After creating the project, you can add ISINs or tickers to track positions
+                    and start automated analysis.
                   </p>
                 </div>
               </div>
@@ -798,15 +823,15 @@ export default function ProjectsPage() {
             onClick={() => setShowCreate(false)}
             className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
           >
-            Abbrechen
+            Cancel
           </button>
           <button
             type="button"
             onClick={handleCreateProject}
             disabled={!canCreate || loading}
-            className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+            className="flex-1 px-5 py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
           >
-            {loading ? "Erstellen..." : "Projekt erstellen"}
+            {loading ? "Creating..." : "Create project"}
           </button>
         </div>
         </div>

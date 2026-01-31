@@ -1,6 +1,6 @@
-# Optionsschein Data Model
+# Warrant Data Model
 
-This module defines a reproducible, calculation-ready Optionsschein (OS) model for both standalone analysis and project-bound positions. It separates **persisted inputs** from **computed outputs** to ensure all KPIs are always reproducible from stored inputs.
+This module defines a reproducible, calculation-ready Warrant (OS) model for both standalone analysis and project-bound positions. It separates **persisted inputs** from **computed outputs** to ensure all KPIs are always reproducible from stored inputs.
 
 ## What is persisted (source of truth)
 ### Instrument / Contract (static)
@@ -12,7 +12,7 @@ This module defines a reproducible, calculation-ready Optionsschein (OS) model f
 - `underlyingSymbol`
 - `strike`
 - `expiry` (ISO date)
-- `ratio` (Bezugsverhältnis, default 1)
+- `ratio` (ratio, default 1)
 - `currency`
 - `settlementType` (optional)
 - `multiplier` (optional, default 1)
@@ -38,7 +38,7 @@ Computed values are **derived** and may be cached only as a snapshot:
 - `intrinsicValue`
 - `timeValue`
 - `breakEven`
-- `agio` / `aufgeld` (absolute + percent)
+- `agio` / `premium` (absolute + percent)
 - `delta`, `gamma`, `theta`, `vega`
 - `omega`
 - `asOf`
@@ -80,7 +80,7 @@ To reproduce fair value, intrinsic/time value, break-even, agio, and Greeks:
 - `fxRate`
 - `valuationDate`
 
-`marketPrice` is optional and used only for agio/vergleich.
+`marketPrice` is optional and used only for premium/benchmarking.
 
 ## Files
 - `types.ts` – canonical TypeScript types

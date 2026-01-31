@@ -722,7 +722,7 @@ export default function ProjectDetailPage() {
 			}
 
 			if (!payload.isin) {
-				throw new Error("Ungültige Antwort vom ISIN-Service.");
+				throw new Error("Invalid response from the ISIN service.");
 			}
 
 			setIsin(payload.isin);
@@ -1016,7 +1016,7 @@ export default function ProjectDetailPage() {
 
       const hasError = responses.some((result) => result.status === "rejected");
       if (hasError) {
-        setFxError("FX-Kurse konnten nicht vollständig geladen werden.");
+        setFxError("FX rates could not be fully loaded.");
       }
     }
 
@@ -1099,7 +1099,7 @@ export default function ProjectDetailPage() {
 	async function handleUpdateUnderlyingPrice() {
 		if (!projectId) return;
 		if (underlyingPriceDraft === "") {
-			setUnderlyingPriceError("Bitte einen Preis eingeben.");
+			setUnderlyingPriceError("Please enter a price.");
 			return;
 		}
 		setUnderlyingPriceLoading(true);
@@ -1348,9 +1348,9 @@ export default function ProjectDetailPage() {
 			case "balanced":
 				return "Ausgewogene Rendite/Risiko.";
 			case "aggressive":
-				return "Wachstum mit höherem Risiko.";
+				return "Growth with higher risk.";
 			default:
-				return "Profil noch nicht gesetzt.";
+				return "Profile not set yet.";
 		}
 	}
 
@@ -1384,11 +1384,11 @@ export default function ProjectDetailPage() {
   function priceSourceLabel(source: Project["underlyingLastPriceSource"]) {
     switch (source) {
       case "alpha_quote":
-        return "Aktuellster Preis";
+        return "Latest price";
       case "massive_prev":
-				return "Letzter Schlusskurs";
+				return "Previous close";
 			case "manual":
-				return "Manuell gesetzt";
+				return "Set manually";
 			default:
 				return "—";
     }
@@ -1542,13 +1542,13 @@ export default function ProjectDetailPage() {
 											className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 										>
 											<span className="material-symbols-outlined text-base">payments</span>
-											{tickerLoading ? "Lädt..." : "Aktuellster Preis"}
+											{tickerLoading ? "Loading..." : "Latest price"}
 										</Popover.Button>
 										<Popover.Panel
 											static
 											className="pointer-events-none absolute left-0 top-full mt-2 w-max rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
 										>
-											Aktuellster Preis aktualisiert:{" "}
+											Latest price aktualisiert:{" "}
 											{project.tickerFetchedAt
 												? new Date(project.tickerFetchedAt).toLocaleString()
 												: "—"}
@@ -1563,13 +1563,13 @@ export default function ProjectDetailPage() {
 											className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 										>
 											<span className="material-symbols-outlined text-base">history</span>
-											{massivePrevLoading ? "Lädt..." : "Letzter Schlusskurs"}
+											{massivePrevLoading ? "Loading..." : "Previous close"}
 										</Popover.Button>
 										<Popover.Panel
 											static
 											className="pointer-events-none absolute left-0 top-full mt-2 w-max rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
 										>
-											Letzter Schlusskurs aktualisiert:{" "}
+											Previous close updated:{" "}
 											{project.massivePrevBarFetchedAt
 												? new Date(project.massivePrevBarFetchedAt).toLocaleString()
 												: "—"}
@@ -1577,7 +1577,7 @@ export default function ProjectDetailPage() {
 									</Popover>
 									{project.massivePrevBarFetchedAt ? (
 										<span className="text-[11px] text-slate-400">
-											Letzter Schlusskurs aktualisiert:{" "}
+											Previous close updated:{" "}
 											{new Date(project.massivePrevBarFetchedAt).toLocaleString()}
 										</span>
 									) : null}
@@ -1779,6 +1779,8 @@ export default function ProjectDetailPage() {
 										: "bg-rose-100 text-rose-700";
 								})();
 
+								const hasOverviewData = Object.keys(overview).length > 0;
+
 								return (
 									<>
 										<div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
@@ -1791,7 +1793,7 @@ export default function ProjectDetailPage() {
 												</p>
 												{currencyMismatch ? (
 													<p className="text-[11px] text-amber-600">
-														Hinweis: Ticker in {currencyValue}, Projektbasis {projectCurrency}.
+														Note: ticker in {currencyValue}, project base {projectCurrency}.
 													</p>
 												) : null}
 											</div>
@@ -1811,7 +1813,7 @@ export default function ProjectDetailPage() {
 														<span className="material-symbols-outlined text-base">
 															travel_explore
 														</span>
-														{tickerLoading ? "Lädt..." : "Unternehmensdaten"}
+														{tickerLoading ? "Loading..." : "Company data"}
 													</Popover.Button>
 													<Popover.Panel
 														static
@@ -1831,7 +1833,7 @@ export default function ProjectDetailPage() {
 														className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 													>
 														<span className="material-symbols-outlined text-base">insights</span>
-														{massiveLoading ? "Lädt..." : "Unternehmensprofil"}
+														{massiveLoading ? "Loading..." : "Company profile"}
 													</Popover.Button>
 													<Popover.Panel
 														static
@@ -1845,115 +1847,151 @@ export default function ProjectDetailPage() {
 												</Popover>
 											</div>
 										</div>
-										<div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-xs text-slate-600">
-											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-												<p className="text-[10px] uppercase tracking-wider text-slate-400">
-													Market Cap
-												</p>
-												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
-													{formatCompact(marketCapValue)}
-												</p>
-												<p className="mt-1 text-[11px] text-slate-400">
-													PE {formatMaybeNumeric(peValue)}
-												</p>
-											</div>
-											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-												<p className="text-[10px] uppercase tracking-wider text-slate-400">Sector</p>
-												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
-													{sectorValue ?? "—"}
-												</p>
-												<p className="mt-1 text-[11px] text-slate-400">
-													{industryValue ?? "—"}
-												</p>
-											</div>
-											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-												<p className="text-[10px] uppercase tracking-wider text-slate-400">
-													Dividend
-												</p>
-												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
-													{formatPercentValue(dividendValue)}
-												</p>
-												<p className="mt-1 text-[11px] text-slate-400">
-													Last Trade {tradingDayValue ?? "—"}
-												</p>
-											</div>
-											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-												<p className="text-[10px] uppercase tracking-wider text-slate-400">
-													52W Range
-												</p>
-												<div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
-													<span>{formatMaybeNumeric(low52Value)}</span>
-													<span>{formatMaybeNumeric(high52Value)}</span>
-												</div>
-												<div className="mt-2 h-1.5 rounded-full bg-slate-200/70 relative overflow-hidden">
-													<div
-														className="absolute top-0 h-1.5 rounded-full bg-slate-400/70"
-														style={{
-															width: rangePosition === null ? "0%" : `${rangePosition}%`,
-														}}
-													/>
-													{rangePosition !== null ? (
-														<span
-															className="absolute -top-1 h-3 w-3 rounded-full border-2 border-white bg-slate-900"
-															style={{ left: `calc(${rangePosition}% - 6px)` }}
-														/>
-													) : null}
-												</div>
-												<p className="mt-2 text-[11px] text-slate-500">Range · aktueller Punkt</p>
-											</div>
-											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-												<p className="text-[10px] uppercase tracking-wider text-slate-400">
-													Analyst Target
-												</p>
-												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
-													{formatMaybeNumeric(targetPriceValue)}
-												</p>
-												<div className="mt-2">
-													{targetDeltaPercent === null ? (
-														<span className="text-[11px] text-slate-400">—</span>
-													) : (
-														<span
-															className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-																targetDeltaPercent >= 0
-																	? "bg-emerald-100 text-emerald-700"
-																	: "bg-rose-100 text-rose-700"
-															}`}
-														>
-															{targetDeltaPercent > 0 ? "+" : ""}
-															{targetDeltaPercent.toFixed(1)}% vs price
-														</span>
-													)}
-												</div>
-											</div>
-											<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-												<p className="text-[10px] uppercase tracking-wider text-slate-400">
-													Beta / Trend
-												</p>
-												<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
-													{formatMaybeNumeric(betaValue)}
-												</p>
-												<div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
-													<span className={`rounded-full px-2 py-0.5 font-semibold ${trendTone}`}>
-														{trendLabel}
-													</span>
-													<span>50d {formatMaybeNumeric(ma50Value)}</span>
-													<span>·</span>
-													<span>200d {formatMaybeNumeric(ma200Value)}</span>
-												</div>
-											</div>
-										</div>
-										<div className="mt-4 flex items-center gap-2">
-											<button
-												type="button"
-												onClick={() => setShowTickerDetails((prev) => !prev)}
-												className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+										<div className={`mt-4 ${hasOverviewData ? "" : "relative"}`}>
+											<div
+												className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-xs text-slate-600 ${
+													hasOverviewData ? "" : "blur-sm opacity-60 pointer-events-none"
+												}`}
 											>
-												<span className="material-symbols-outlined text-base">
-													{showTickerDetails ? "expand_less" : "expand_more"}
-												</span>
-												{showTickerDetails ? "Details ausblenden" : "Mehr anzeigen"}
-											</button>
+												<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+													<p className="text-[10px] uppercase tracking-wider text-slate-400">
+														Market Cap
+													</p>
+													<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
+														{formatCompact(marketCapValue)}
+													</p>
+													<p className="mt-1 text-[11px] text-slate-400">
+														PE {formatMaybeNumeric(peValue)}
+													</p>
+												</div>
+												<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+													<p className="text-[10px] uppercase tracking-wider text-slate-400">Sector</p>
+													<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
+														{sectorValue ?? "—"}
+													</p>
+													<p className="mt-1 text-[11px] text-slate-400">
+														{industryValue ?? "—"}
+													</p>
+												</div>
+												<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+													<p className="text-[10px] uppercase tracking-wider text-slate-400">
+														Dividend
+													</p>
+													<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
+														{formatPercentValue(dividendValue)}
+													</p>
+													<p className="mt-1 text-[11px] text-slate-400">
+														Last Trade {tradingDayValue ?? "—"}
+													</p>
+												</div>
+												<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+													<p className="text-[10px] uppercase tracking-wider text-slate-400">
+														52W Range
+													</p>
+													<div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+														<span>{formatMaybeNumeric(low52Value)}</span>
+														<span>{formatMaybeNumeric(high52Value)}</span>
+													</div>
+													<div className="mt-2 h-1.5 rounded-full bg-slate-200/70 relative overflow-hidden">
+														<div
+															className="absolute top-0 h-1.5 rounded-full bg-slate-400/70"
+															style={{
+																width: rangePosition === null ? "0%" : `${rangePosition}%`,
+															}}
+														/>
+														{rangePosition !== null ? (
+															<span
+																className="absolute -top-1 h-3 w-3 rounded-full border-2 border-white bg-slate-900"
+																style={{ left: `calc(${rangePosition}% - 6px)` }}
+															/>
+														) : null}
+													</div>
+													<p className="mt-2 text-[11px] text-slate-500">Range · aktueller Punkt</p>
+												</div>
+												<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+													<p className="text-[10px] uppercase tracking-wider text-slate-400">
+														Analyst Target
+													</p>
+													<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
+														{formatMaybeNumeric(targetPriceValue)}
+													</p>
+													<div className="mt-2">
+														{targetDeltaPercent === null ? (
+															<span className="text-[11px] text-slate-400">—</span>
+														) : (
+															<span
+																className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+																	targetDeltaPercent >= 0
+																		? "bg-emerald-100 text-emerald-700"
+																		: "bg-rose-100 text-rose-700"
+																}`}
+															>
+																{targetDeltaPercent > 0 ? "+" : ""}
+																{targetDeltaPercent.toFixed(1)}% vs price
+															</span>
+														)}
+													</div>
+												</div>
+												<div className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+													<p className="text-[10px] uppercase tracking-wider text-slate-400">
+														Beta / Trend
+													</p>
+													<p className="mt-1 text-base font-semibold text-slate-900 leading-tight">
+														{formatMaybeNumeric(betaValue)}
+													</p>
+													<div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+														<span className={`rounded-full px-2 py-0.5 font-semibold ${trendTone}`}>
+															{trendLabel}
+														</span>
+														<span>50d {formatMaybeNumeric(ma50Value)}</span>
+														<span>·</span>
+														<span>200d {formatMaybeNumeric(ma200Value)}</span>
+													</div>
+												</div>
+											</div>
+											{hasOverviewData ? null : (
+												<div className="absolute inset-0 flex items-center justify-center">
+													<div className="rounded-2xl border border-dashed border-slate-200 bg-white/90 p-6 text-center shadow-sm backdrop-blur-sm">
+														<div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-inner">
+															<span className="material-symbols-outlined text-[22px]">
+																travel_explore
+															</span>
+														</div>
+														<h4 className="mt-3 text-sm font-semibold text-slate-900">
+															No company overview yet
+														</h4>
+														<p className="mt-1 text-xs text-slate-500">
+															Fetch Alpha Vantage data to unlock company metrics and price context.
+														</p>
+														<button
+															type="button"
+															onClick={() => handleFetchTickerInfo("overview")}
+															disabled={!project.underlyingSymbol || tickerLoading}
+															className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+														>
+															<span className="material-symbols-outlined text-base">
+																travel_explore
+															</span>
+															{tickerLoading ? "Loading..." : "Load company data"}
+														</button>
+													</div>
+												</div>
+											)}
 										</div>
+										{hasOverviewData ? (
+											<div className="mt-4 flex items-center gap-2">
+												<button
+													type="button"
+													onClick={() => setShowTickerDetails((prev) => !prev)}
+													className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+												>
+													<span className="material-symbols-outlined text-base">
+														{showTickerDetails ? "expand_less" : "expand_more"}
+													</span>
+													{showTickerDetails ? "Details ausblenden" : "Mehr anzeigen"}
+												</button>
+											</div>
+										) : null}
 										{showTickerDetails ? (
 											<>
 												{overview.Description ? (
@@ -2118,7 +2156,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowPriceModal(true)}
 							className="bg-surface-light border border-border-light p-4 rounded-xl text-left hover:border-slate-300 transition-colors"
 						>
-							<p className="text-xs font-semibold text-slate-500 uppercase">Underlying Preis</p>
+							<p className="text-xs font-semibold text-slate-500 uppercase">Underlying price</p>
 							<p className="text-2xl font-bold mt-1">
 								{project.underlyingLastPrice !== null &&
 									project.underlyingLastPrice !== undefined
@@ -2158,7 +2196,7 @@ export default function ProjectDetailPage() {
                   ].filter((item) => item.value !== null) as Array<{ label: string; value: number }>;
 
                   if (values.length === 0) {
-                    return <p className="text-sm text-slate-400 mt-2">Keine Quote-Daten.</p>;
+                    return <p className="text-sm text-slate-400 mt-2">No quote data.</p>;
                   }
 
                   const min = Math.min(...values.map((v) => v.value));
@@ -2190,7 +2228,7 @@ export default function ProjectDetailPage() {
                   );
                 })()
               ) : (
-                <p className="text-sm text-slate-400 mt-2">Preis laden, um Bewegung zu sehen.</p>
+                <p className="text-sm text-slate-400 mt-2">Load a price to see movement.</p>
               )}
             </div> */}
 					</div>
@@ -2319,7 +2357,7 @@ export default function ProjectDetailPage() {
 															</span>
 															<span className="text-[10px] text-slate-500 uppercase tracking-tighter">
 																{entryCurrency === project.baseCurrency.toUpperCase()
-																	? "Basiswährung"
+																	? "Base currency"
 																	: (() => {
 																			const entryBase =
 																				convertValue(
@@ -2533,7 +2571,7 @@ export default function ProjectDetailPage() {
 											: "border-slate-200 bg-white text-slate-600"
 										}`}
 								>
-									Optionsschein
+									Warrant
 								</button>
 								<button
 									type="button"
@@ -2561,7 +2599,7 @@ export default function ProjectDetailPage() {
 													: "border-slate-200 bg-white text-slate-600"
 												}`}
 										>
-											Manuell
+											Manual
 										</button>
 										<button
 											type="button"
@@ -2667,7 +2705,7 @@ export default function ProjectDetailPage() {
 								/>
 							</div>
 							<div>
-								<label className="text-xs font-bold uppercase text-slate-500">Währung</label>
+								<label className="text-xs font-bold uppercase text-slate-500">Currency</label>
 								<select
 									value={positionCurrency.toUpperCase()}
 									onChange={(event) => setPositionCurrency(event.target.value)}
@@ -2825,7 +2863,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowPositionModal(false)}
 							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Abbrechen
+							Cancel
 						</button>
 						<button
 							type="button"
@@ -2945,17 +2983,17 @@ export default function ProjectDetailPage() {
 							<span className="material-symbols-outlined text-xl">warning</span>
 						</div>
 						<div>
-							<h3 className="text-lg font-bold text-slate-900">Projekt löschen</h3>
+							<h3 className="text-lg font-bold text-slate-900">Delete project</h3>
 							<p className="text-sm text-slate-500 mt-1">
-								Diese Aktion kann nicht rückgängig gemacht werden.
+								This action cannot be undone.
 							</p>
 						</div>
 					</div>
 					<div className="p-6">
 						<p className="text-sm text-slate-600">
-							Möchten Sie das Projekt{" "}
-							<span className="font-semibold text-slate-900">{project.name}</span> wirklich
-							löschen? Alle Positionen werden entfernt.
+							Do you want to delete the project{" "}
+							<span className="font-semibold text-slate-900">{project.name}</span>?
+							All positions will be removed.
 						</p>
 					</div>
 					<div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
@@ -2964,14 +3002,14 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowDeleteProject(false)}
 							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Abbrechen
+							Cancel
 						</button>
 						<button
 							type="button"
 							onClick={handleDeleteProject}
 							className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
 						>
-							Projekt löschen
+							Delete project
 						</button>
 					</div>
 				</div>
@@ -2998,19 +3036,19 @@ export default function ProjectDetailPage() {
 							<span className="material-symbols-outlined text-xl">warning</span>
 						</div>
 						<div>
-							<h3 className="text-lg font-bold text-slate-900">Position löschen</h3>
+							<h3 className="text-lg font-bold text-slate-900">Delete position</h3>
 							<p className="text-sm text-slate-500 mt-1">
-								Diese Aktion kann nicht rückgängig gemacht werden.
+								This action cannot be undone.
 							</p>
 						</div>
 					</div>
 					<div className="p-6">
 						<p className="text-sm text-slate-600">
-							Möchten Sie die Position
+							Do you want to delete the position
 							<span className="font-semibold text-slate-900">
 								{deletePositionTarget ? ` ${deletePositionTarget.name ?? deletePositionTarget.isin}` : ""}
 							</span>
-							wirklich löschen?
+							?
 						</p>
 					</div>
 					<div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
@@ -3019,7 +3057,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowDeletePosition(false)}
 							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Abbrechen
+							Cancel
 						</button>
 						<button
 							type="button"
@@ -3027,7 +3065,7 @@ export default function ProjectDetailPage() {
 							className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
 							disabled={loading}
 						>
-							Position löschen
+							Delete position
 						</button>
 					</div>
 				</div>
@@ -3112,7 +3150,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowTickerModal(false)}
 							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Abbrechen
+							Cancel
 						</button>
 						<button
 							type="button"
@@ -3120,7 +3158,7 @@ export default function ProjectDetailPage() {
 							className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
 							disabled={tickerSaveLoading}
 						>
-							{tickerSaveLoading ? "Speichern..." : "Ticker speichern"}
+							{tickerSaveLoading ? "Saving..." : "Save ticker"}
 						</button>
 					</div>
 				</div>
@@ -3144,9 +3182,9 @@ export default function ProjectDetailPage() {
 				>
 					<div className="p-6 border-b border-border-light flex items-center justify-between">
 						<div>
-							<h3 className="text-lg font-bold text-slate-900">Preis manuell setzen</h3>
+							<h3 className="text-lg font-bold text-slate-900">Set price manually</h3>
 							<p className="text-sm text-slate-500 mt-1">
-								Aktualisiere den letzten Underlying-Preis.
+								Update the latest underlying price.
 							</p>
 						</div>
 						<button
@@ -3159,7 +3197,7 @@ export default function ProjectDetailPage() {
 					</div>
 					<div className="p-6 space-y-4">
 						<div>
-							<label className="text-xs font-bold uppercase text-slate-500">Preis</label>
+							<label className="text-xs font-bold uppercase text-slate-500">Price</label>
 							<div className="mt-2 flex items-center gap-2 rounded-lg border border-border-light bg-slate-50 px-3 py-2">
 								<input
 									type="number"
@@ -3202,7 +3240,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowPriceModal(false)}
 							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Abbrechen
+							Cancel
 						</button>
 						<button
 							type="button"
@@ -3210,7 +3248,7 @@ export default function ProjectDetailPage() {
 							disabled={underlyingPriceLoading}
 							className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
 						>
-							{underlyingPriceLoading ? "Speichern..." : "Preis speichern"}
+							{underlyingPriceLoading ? "Saving..." : "Save price"}
 						</button>
 					</div>
 				</div>
@@ -3234,9 +3272,9 @@ export default function ProjectDetailPage() {
 				>
 					<div className="p-6 border-b border-border-light flex items-center justify-between">
 						<div>
-							<h3 className="text-lg font-bold text-slate-900">Basiswährung ändern</h3>
+							<h3 className="text-lg font-bold text-slate-900">Change base currency</h3>
 							<p className="text-sm text-slate-500 mt-1">
-								Wähle eine neue Basiswährung.
+								Select a new base currency.
 							</p>
 						</div>
 						<button
@@ -3249,7 +3287,7 @@ export default function ProjectDetailPage() {
 					</div>
 					<div className="p-6 space-y-4">
 						<div>
-							<label className="text-xs font-bold uppercase text-slate-500">Währung</label>
+							<label className="text-xs font-bold uppercase text-slate-500">Currency</label>
 							<select
 								value={project?.baseCurrency?.toUpperCase() ?? "EUR"}
 								onChange={(event) => handleUpdateBaseCurrency(event.target.value)}
@@ -3274,7 +3312,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowCurrencyModal(false)}
 							className="px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Schließen
+							Close
 						</button>
 					</div>
 				</div>
@@ -3416,7 +3454,7 @@ export default function ProjectDetailPage() {
 								</div>
 							</div>
 						) : (
-							<p className="text-sm text-slate-400">Keine Daten vorhanden.</p>
+							<p className="text-sm text-slate-400">No data available.</p>
 						)}
 					</div>
 					<div className="p-6 border-t border-border-light bg-slate-50 flex justify-end rounded-b-2xl">
@@ -3425,7 +3463,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setShowRiskScoreModal(false)}
 							className="px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Schließen
+							Close
 						</button>
 					</div>
 				</div>
@@ -3479,7 +3517,7 @@ export default function ProjectDetailPage() {
 							onClick={() => setPayloadModal(null)}
 							className="px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
-							Schließen
+							Close
 						</button>
 					</div>
 				</div>
@@ -3487,3 +3525,4 @@ export default function ProjectDetailPage() {
 		</div>
 	);
 }
+

@@ -65,7 +65,7 @@ Indexes:
 - volatility (numeric, nullable)
 - rate (numeric, nullable)
 - dividend_yield (numeric, nullable)
-- ratio (numeric, nullable) -- Bezugsverhältnis
+- ratio (numeric, nullable) -- ratio
 - market_price (numeric, nullable)
 - computed (jsonb, nullable) -- { fairValue, intrinsicValue, timeValue, delta, gamma, theta, vega, iv?, asOf }
 - time_value_curve (jsonb, nullable) -- [{ day, value }]

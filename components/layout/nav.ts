@@ -74,10 +74,10 @@ export const navSections: NavSection[] = [
       },
       {
         href: "/analysis/optionsschein-rechner",
-        label: "Optionsschein-Rechner",
+        label: "Warrant Calculator",
         icon: "calculate",
-        title: "Optionsschein-Rechner",
-        subtitle: "Model-based OS calculator",
+        title: "Warrant Calculator",
+        subtitle: "Model-based warrant calculator",
       },
     ],
   },

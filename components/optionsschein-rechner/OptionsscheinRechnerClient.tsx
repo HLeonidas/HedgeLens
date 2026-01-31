@@ -263,7 +263,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       title: "Contract & Market",
       items: [
         {
-          label: "Basispreis",
+          label: "Strike",
           value: selectedInstrument
             ? formatMaybe(
                 selectedInstrument.kind === "position"
@@ -273,7 +273,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
             : "—",
         },
         {
-          label: "Aufgeld",
+          label: "Premium",
           value:
             statusQuoResult?.premium === null || statusQuoResult?.premium === undefined
               ? "—"
@@ -287,7 +287,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
               : formatMaybe(statusQuoResult.breakEven),
         },
         {
-          label: "Implizite Volatilität",
+          label: "Implied volatility",
           value:
             statusQuoResult?.impliedVolatilityUsed !== null &&
             statusQuoResult?.impliedVolatilityUsed !== undefined
@@ -296,18 +296,18 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 ? formatPercent(Number(baseInputs.volatilityPct))
                 : "—",
         },
-        { label: "Bewertungsstichtag", value: baseInputs.valuationDate || "—" },
+        { label: "Valuation date", value: baseInputs.valuationDate || "—" },
       ],
     },
     {
       title: "Valuation",
       items: [
-        { label: "Fairer Wert", value: formatCurrency(statusQuoResult?.fairValue, currency) },
+        { label: "Fair value", value: formatCurrency(statusQuoResult?.fairValue, currency) },
         {
-          label: "Intrinsischer Wert",
+          label: "Intrinsic value",
           value: formatCurrency(statusQuoResult?.intrinsicValue, currency),
         },
-        { label: "Zeitwert", value: formatCurrency(statusQuoResult?.timeValue, currency) },
+        { label: "Time value", value: formatCurrency(statusQuoResult?.timeValue, currency) },
       ],
     },
     {
@@ -325,9 +325,9 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
   const missingInputs = useMemo(() => {
     if (!selectedInstrument) return [];
     const missing: string[] = [];
-    if (baseInputs.underlyingPrice === "") missing.push("Basiswertkurs");
-    if (baseInputs.volatilityPct === "") missing.push("Volatilität");
-    if (baseInputs.ratePct === "") missing.push("Zinssatz");
+    if (baseInputs.underlyingPrice === "") missing.push("Underlying price");
+    if (baseInputs.volatilityPct === "") missing.push("Volatility");
+    if (baseInputs.ratePct === "") missing.push("Rate");
     if (!baseInputs.valuationDate) missing.push("Bewertungsstichtag");
     return missing;
   }, [baseInputs, selectedInstrument]);
@@ -533,17 +533,17 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       const data = (await response.json().catch(() => null)) as CalculateResponse | { error?: string } | null;
 
       if (!response.ok || !data || "error" in data) {
-        throw new Error((data && "error" in data && data.error) || "Berechnung fehlgeschlagen.");
+        throw new Error((data && "error" in data && data.error) || "Calculation failed.");
       }
 
       if (!("referencePrice" in data)) {
-        throw new Error("Berechnung fehlgeschlagen.");
+        throw new Error("Calculation failed.");
       }
 
       setReferencePrice(data.referencePrice ?? null);
       setResults(data.results ?? []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Berechnung fehlgeschlagen.";
+      const message = err instanceof Error ? err.message : "Calculation failed.";
       setError(message);
     } finally {
       setLoading(false);
@@ -582,7 +582,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         | null;
 
       if (!response.ok || !data || data.error) {
-        throw new Error(data?.error ?? "Speichern fehlgeschlagen.");
+        throw new Error(data?.error ?? "Save failed.");
       }
 
       if (data.position) {
@@ -598,7 +598,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
 
       setSaveMessage("Modelldaten wurden gespeichert.");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Speichern fehlgeschlagen.";
+      const message = err instanceof Error ? err.message : "Save failed.";
       setError(message);
     } finally {
       setSaving(false);
@@ -643,23 +643,23 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         | null;
 
       if (!response.ok || !data || data.error) {
-        throw new Error(data?.error ?? "Speichern fehlgeschlagen.");
+        throw new Error(data?.error ?? "Save failed.");
       }
 
       const projectMeta = projects.find((project) => project.id === projectSelection);
       const nextPosition: PositionItem = {
         ...(data.position as PositionItem),
         projectId: projectSelection,
-        projectName: projectMeta?.name ?? "Projekt",
+        projectName: projectMeta?.name ?? "Project",
         baseCurrency: projectMeta?.baseCurrency ?? "EUR",
       };
 
       setPositions((prev) => [nextPosition, ...prev]);
       setSelectedInstrument({ kind: "position", data: nextPosition });
       router.push(`/analysis/optionsschein-rechner/${nextPosition.id}`);
-      setSaveMessage("Position wurde dem Projekt hinzugefügt.");
+      setSaveMessage("Position added to the project.");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Speichern fehlgeschlagen.";
+      const message = err instanceof Error ? err.message : "Save failed.";
       setError(message);
     } finally {
       setSaving(false);
@@ -738,7 +738,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
     if (isIsin || !positionsLoaded) return;
     const match = positions.find((position) => position.id === initialInstrumentId);
     if (!match) {
-      setError("Optionsschein konnte nicht geladen werden.");
+      setError("Warrant could not be loaded.");
       setInitialPending(false);
     }
   }, [initialInstrumentId, positions, positionsLoaded, selectedInstrument]);
@@ -751,7 +751,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
 
     if (selectedInstrument.kind === "position") {
       const position = selectedInstrument.data;
-      const missing = [!position.strike && "Basispreis", !position.expiry && "Fälligkeit", !position.ratio && "Bezugsverhältnis"].filter(Boolean);
+      const missing = [!position.strike && "Strike", !position.expiry && "Expiry", !position.ratio && "Ratio"].filter(Boolean);
 
       setWarning(missing.length ? `Fehlende Stammdaten: ${missing.join(", ")}.` : null);
     } else {
@@ -814,7 +814,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       series: [
         {
           type: "line",
-          name: "Zeitwert",
+          name: "Time value",
           data: timeValueSeries,
           color: "#0f172a",
           lineWidth: 2,
@@ -873,12 +873,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
     const dates = buildCurveDates(baseInputs.valuationDate, expiryDate, 6);
     if (dates.length === 0) {
       setTimeValuePoints([]);
-      setTimeValueError("Ungültige Laufzeitdaten.");
+      setTimeValueError("Invalid time series data.");
       return;
     }
     if (Date.parse(expiryDate) <= Date.parse(baseInputs.valuationDate)) {
       setTimeValuePoints([]);
-      setTimeValueError("Fälligkeit liegt vor dem Bewertungsstichtag.");
+      setTimeValueError("Expiry is before the valuation date.");
       return;
     }
 
@@ -925,12 +925,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
 
         if (!response.ok || !data || "error" in data) {
           throw new Error(
-            (data && "error" in data && data.error) || "Zeitwert-Simulation fehlgeschlagen."
+            (data && "error" in data && data.error) || "Time value simulation failed."
           );
         }
 
         if (!("results" in data)) {
-          throw new Error("Zeitwert-Simulation fehlgeschlagen.");
+          throw new Error("Time value simulation failed.");
         }
 
         const points = data.results.map((result, index) => ({
@@ -943,7 +943,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         setTimeValuePoints(points);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Zeitwert-Simulation fehlgeschlagen.";
+          err instanceof Error ? err.message : "Time value simulation failed.";
         setTimeValueError(message);
       } finally {
         setTimeValueLoading(false);
@@ -969,11 +969,10 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Optionsschein-Rechner
+              Warrant Calculator
             </h1>
             <p className="text-sm text-slate-500">
-              Szenariobasierte Bewertung von Optionsscheinen mit Greeks, Break-even und
-              Preisreaktion.
+              Scenario-based valuation of warrants with Greeks, break-even, and price response.
             </p>
           </div>
 
@@ -981,7 +980,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
             <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
               <div className="flex items-center gap-3 text-sm text-slate-500">
                 <span className="material-symbols-outlined text-base">hourglass_empty</span>
-                Lädt Optionsschein-Daten...
+                Loading warrant data...
               </div>
             </div>
           ) : (
@@ -990,16 +989,16 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                    Aus Projekt auswählen
+                    Select from project
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Wähle eine bestehende Optionsschein-Position für die Analyse.
+                    Select an existing warrant position for analysis.
                   </p>
                 </div>
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ISIN oder Projekt suchen"
+                  placeholder="Search ISIN or project"
                   className="rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm focus:outline-none"
                 />
               </div>
@@ -1007,12 +1006,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 <table className="min-w-full text-sm">
                   <thead className="text-xs uppercase text-slate-400">
                     <tr>
-                      <th className="px-3 py-2 text-left">Projekt</th>
+                      <th className="px-3 py-2 text-left">Project</th>
                       <th className="px-3 py-2 text-left">Name</th>
                       <th className="px-3 py-2 text-left">ISIN</th>
                       <th className="px-3 py-2 text-left">Typ</th>
                       <th className="px-3 py-2 text-left">Strike</th>
-                      <th className="px-3 py-2 text-left">Fälligkeit</th>
+                      <th className="px-3 py-2 text-left">Expiry</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
@@ -1020,7 +1019,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                     {filteredPositions.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-3 py-6 text-center text-xs text-slate-500">
-                          Keine Optionsschein-Positionen gefunden.
+                          No warrant positions found.
                         </td>
                       </tr>
                     ) : (
@@ -1044,7 +1043,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                               onClick={() => handlePositionSelect(position)}
                               className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
                             >
-                              Öffnen
+                              Open
                             </button>
                           </td>
                         </tr>
@@ -1060,7 +1059,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 ISIN manuell eingeben
               </h2>
               <p className="text-xs text-slate-500 mt-2">
-                Ad-hoc Analyse ohne Projektzuordnung. Die Daten werden nicht gespeichert.
+                Ad-hoc analysis without a project. Data is not saved.
               </p>
               <div className="mt-4 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                 <label className="text-xs font-bold uppercase text-slate-500">ISIN</label>
@@ -1080,7 +1079,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   <span className="material-symbols-outlined text-base">travel_explore</span>
-                  {lookupLoading ? "Suche läuft..." : "ISIN analysieren"}
+                  {lookupLoading ? "Searching..." : "Analyze ISIN"}
                 </button>
               </div>
             </div>
@@ -1103,13 +1102,13 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Optionsschein-Rechner
+              Warrant Calculator
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               Analysemodus:{" "}
               {selectedInstrument.kind === "position"
                 ? selectedInstrument.data.projectId
-                  ? "Projekt"
+                  ? "Project"
                   : "Standalone"
                 : "Ad-hoc"}
             </p>
@@ -1132,7 +1131,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
               </div>
               <div>
                 {selectedInstrument.data.side.toUpperCase()} · Strike{" "}
-                {selectedInstrument.data.strike ?? "—"} · Fälligkeit{" "}
+                {selectedInstrument.data.strike ?? "—"} · Expiry{" "}
                 {selectedInstrument.data.expiry ?? "—"}
               </div>
             </>
@@ -1145,7 +1144,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
               </div>
               <div>
                 {selectedInstrument.data.type.toUpperCase()} · Strike {selectedInstrument.data.strike} ·
-                Fälligkeit {selectedInstrument.data.expiry}
+                Expiry {selectedInstrument.data.expiry}
               </div>
             </>
           )}
@@ -1156,7 +1155,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
           </span>
           {loading ? (
             <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
-              Berechnung läuft...
+              Calculation running...
             </span>
           ) : null}
         </div>
@@ -1185,7 +1184,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
               />
             </label>
             <label className="text-xs font-semibold text-slate-500">
-              Volatilität (%)
+              Volatility (%)
               <input
                 type="number"
                 min={0}
@@ -1284,7 +1283,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                   Modellwerte speichern
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Änderungen werden im Projekt hinterlegt und beim nächsten Öffnen geladen.
+                  Changes are saved to the project and loaded next time.
                 </p>
               </div>
               <button
@@ -1294,7 +1293,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
               >
                 <span className="material-symbols-outlined text-base">save</span>
-                {saving ? "Speichern..." : "Änderungen sichern"}
+                {saving ? "Saving..." : "Save changes"}
               </button>
             </div>
           </div>
@@ -1302,10 +1301,10 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
             <div className="flex flex-col gap-2">
               <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                Ad-hoc in Projekt übernehmen
+                Add to project (ad hoc)
               </h3>
               <p className="text-xs text-slate-500">
-                Speichere die analysierte ISIN als Projektposition (Kaufpreis &amp; Stückzahl
+                Save the analyzed ISIN as a project position (buy-in price &amp; quantity
                 erforderlich).
               </p>
             </div>
@@ -1317,7 +1316,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                   onChange={(event) => setProjectSelection(event.target.value)}
                   className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
                 >
-                  <option value="">Projekt wählen</option>
+                  <option value="">Select project</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
@@ -1326,7 +1325,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 </select>
               </label>
               <label className="text-xs font-semibold text-slate-500">
-                Buy-in Preis
+                Buy-in price
                 <input
                   type="number"
                   min={0}
@@ -1339,7 +1338,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 />
               </label>
               <label className="text-xs font-semibold text-slate-500">
-                Stückzahl
+                Quantity
                 <input
                   type="number"
                   min={0}
@@ -1360,7 +1359,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
               >
                 <span className="material-symbols-outlined text-base">library_add</span>
-                {saving ? "Speichern..." : "Zu Projekt hinzufügen"}
+                {saving ? "Saving..." : "Add to project"}
               </button>
             </div>
           </div>
@@ -1386,15 +1385,15 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                Zeitwert bis Laufzeitende
+                Time value until expiry
               </h3>
               <p className="text-xs text-slate-500">
-                Simulation des Zeitwertverlaufs bis {expiryDate ?? "Fälligkeit"}.
+                Time value simulation until {expiryDate ?? "Expiry"}.
               </p>
             </div>
             {timeValueLoading ? (
               <span className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-[11px] font-semibold text-slate-500">
-                Simulation läuft...
+                Simulation running...
               </span>
             ) : null}
           </div>
@@ -1407,7 +1406,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
 
           {timeValuePoints.length === 0 ? (
             <div className="mt-4 rounded-lg border border-slate-200/70 bg-white px-3 py-8 text-center text-xs text-slate-500">
-              Keine Zeitwert-Simulation verfügbar.
+              No time value simulation available.
             </div>
           ) : (
             <div className="mt-4 rounded-lg border border-slate-200/70 bg-white p-3">
@@ -1417,10 +1416,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         </div>
 
         <InfoCallout
-          title="Hinweis zur Berechnung"
-          description="Modellwerte sind Näherungen und können von Emittentenpreisen abweichen. Besonders der Zeitwertverlust (Theta) wirkt sich in längeren Zeiträumen stark aus."
+          title="Calculation note"
+          description="Model values are approximations and may differ from issuer prices. Time value decay (theta) has a stronger impact over longer horizons."
         />
       </div>
     </div>
   );
 }
+
+

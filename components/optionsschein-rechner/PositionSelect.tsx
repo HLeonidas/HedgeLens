@@ -20,7 +20,7 @@ export function PositionSelect({
   onSelect,
   searchValue,
   onSearchChange,
-  label = "Position auswählen",
+  label = "Select position",
 }: PositionSelectProps) {
   return (
     <div>
@@ -29,7 +29,7 @@ export function PositionSelect({
         <input
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="ISIN oder Projekt suchen"
+          placeholder="Search ISIN or project"
           className="w-full rounded-lg border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
         />
         <select

@@ -53,10 +53,10 @@ export function ScenarioComparisonTable({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-            Szenario-Ergebnisse
+            Scenario results
           </h3>
           <p className="text-xs text-slate-500">
-            Referenzkurs: {referencePrice === null ? "—" : `${referencePrice.toFixed(4)} ${currency}`}
+            Reference price: {referencePrice === null ? "—" : `${referencePrice.toFixed(4)} ${currency}`}
           </p>
         </div>
         <button
@@ -66,7 +66,7 @@ export function ScenarioComparisonTable({
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
         >
           <span className="material-symbols-outlined text-base">add</span>
-          Szenario hinzufügen
+          Add scenario
         </button>
       </div>
 
@@ -74,10 +74,10 @@ export function ScenarioComparisonTable({
         <table className="min-w-full text-sm">
           <thead className="text-xs uppercase text-slate-400">
             <tr>
-              <th className="px-3 py-2 text-left">Szenario</th>
-              <th className="px-3 py-2 text-left">Basiswertänderung</th>
-              <th className="px-3 py-2 text-left">Basiswert</th>
-              <th className="px-3 py-2 text-left">Optionsschein-Preis</th>
+              <th className="px-3 py-2 text-left">Scenario</th>
+              <th className="px-3 py-2 text-left">Underlying change</th>
+              <th className="px-3 py-2 text-left">Underlying</th>
+              <th className="px-3 py-2 text-left">Warrant price</th>
               <th className="px-3 py-2 text-left">P/L</th>
               <th className="px-3 py-2 text-left">vs. Marktpreis</th>
               <th className="px-3 py-2"></th>
@@ -124,7 +124,7 @@ export function ScenarioComparisonTable({
                       disabled={index === 0}
                       className="w-full rounded-lg border border-slate-200/70 bg-white px-2 py-1 text-sm text-slate-700 disabled:opacity-60"
                     />
-                    <div className="mt-1 text-[10px] text-slate-400">% Veränderung</div>
+                    <div className="mt-1 text-[10px] text-slate-400">% change</div>
                   </td>
                   <td className="px-3 py-3 text-slate-600">
                     {underlying === null ? "—" : formatMaybe(underlying, 2)}

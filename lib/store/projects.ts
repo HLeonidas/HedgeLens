@@ -108,6 +108,25 @@ function userProjectsKey(userId: string) {
   return `user:${userId}:projects`;
 }
 
+const RECENT_TICKER_TTL_MS = 1000 * 60 * 60 * 24;
+
+function normalizeSymbol(value?: string | null) {
+  return (value ?? "").trim().toUpperCase();
+}
+
+function latestFetchMs(project: Project) {
+  const stamps = [
+    project.tickerFetchedAt,
+    project.massiveTickerFetchedAt,
+    project.massiveMarketFetchedAt,
+    project.massivePrevBarFetchedAt,
+  ]
+    .map((value) => (value ? Date.parse(value) : NaN))
+    .filter((value) => Number.isFinite(value));
+  if (stamps.length === 0) return NaN;
+  return Math.max(...stamps);
+}
+
 async function deleteProjectPositions(redis: ReturnType<typeof getRedis>, projectId: string) {
   const ids = await redis.zrange<string[]>(projectPositionsKey(projectId), 0, 1000, {
     rev: false,
@@ -230,6 +249,43 @@ export async function createProject(
   const redis = getRedis();
   const now = new Date().toISOString();
   const projectId = randomUUID();
+  const normalizedSymbol = normalizeSymbol(input.underlyingSymbol);
+  let copySource: Project | null = null;
+
+  if (normalizedSymbol) {
+    const userIds = await redis.zrange<string[]>("users:all", 0, -1);
+    if (userIds && userIds.length > 0) {
+      const projectIdsNested = await Promise.all(
+        userIds.map((id) => redis.zrange<string[]>(userProjectsKey(id), 0, 200, { rev: true }))
+      );
+      const projectIds = projectIdsNested.flat().filter(Boolean);
+      if (projectIds.length > 0) {
+        const candidates = await Promise.all(
+          projectIds.map((id) => redis.get<Project>(projectKey(id)))
+        );
+        const nowMs = Date.now();
+        const matching = candidates.filter((project): project is Project => {
+          if (!project) return false;
+          const projectSymbol = normalizeSymbol(project.underlyingSymbol);
+          const tickerSymbol = normalizeSymbol(project.tickerInfo?.symbol);
+          const massiveSymbol = normalizeSymbol(project.massiveTickerInfo?.symbol);
+          const matches =
+            projectSymbol === normalizedSymbol ||
+            tickerSymbol === normalizedSymbol ||
+            massiveSymbol === normalizedSymbol;
+          if (!matches) return false;
+          const lastFetched = latestFetchMs(project);
+          if (!Number.isFinite(lastFetched)) return false;
+          return nowMs - lastFetched <= RECENT_TICKER_TTL_MS;
+        });
+
+        if (matching.length > 0) {
+          matching.sort((a, b) => latestFetchMs(b) - latestFetchMs(a));
+          copySource = matching[0];
+        }
+      }
+    }
+  }
   const project: Project = {
     id: projectId,
     ownerId: userId,
@@ -239,18 +295,18 @@ export async function createProject(
     color: input.color ?? null,
     baseCurrency: input.baseCurrency ?? "EUR",
     riskProfile: input.riskProfile ?? null,
-    underlyingLastPrice: null,
-    underlyingLastPriceUpdatedAt: null,
-    underlyingLastPriceSource: null,
-    underlyingLastPriceCurrency: null,
-    tickerInfo: null,
-    tickerFetchedAt: null,
-    massiveTickerInfo: null,
-    massiveTickerFetchedAt: null,
-    massiveMarketInfo: null,
-    massiveMarketFetchedAt: null,
-    massivePrevBarInfo: null,
-    massivePrevBarFetchedAt: null,
+    underlyingLastPrice: copySource?.underlyingLastPrice ?? null,
+    underlyingLastPriceUpdatedAt: copySource?.underlyingLastPriceUpdatedAt ?? null,
+    underlyingLastPriceSource: copySource?.underlyingLastPriceSource ?? null,
+    underlyingLastPriceCurrency: copySource?.underlyingLastPriceCurrency ?? null,
+    tickerInfo: copySource?.tickerInfo ?? null,
+    tickerFetchedAt: copySource?.tickerFetchedAt ?? null,
+    massiveTickerInfo: copySource?.massiveTickerInfo ?? null,
+    massiveTickerFetchedAt: copySource?.massiveTickerFetchedAt ?? null,
+    massiveMarketInfo: copySource?.massiveMarketInfo ?? null,
+    massiveMarketFetchedAt: copySource?.massiveMarketFetchedAt ?? null,
+    massivePrevBarInfo: copySource?.massivePrevBarInfo ?? null,
+    massivePrevBarFetchedAt: copySource?.massivePrevBarFetchedAt ?? null,
     createdAt: now,
     updatedAt: now,
   };
