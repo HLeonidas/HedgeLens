@@ -242,7 +242,13 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
 			<div className="w-full sm:flex-1 sm:flex sm:justify-center">
 				<form className="relative w-full sm:w-[520px]" onSubmit={handleSubmit}>
-					<div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-100/80 px-5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/25">
+          <div
+            className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-100/80 px-5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/25"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              searchInputRef.current?.focus();
+            }}
+          >
 						<span className="material-symbols-outlined text-slate-400 text-lg">search</span>
             <input
               ref={searchInputRef}
@@ -273,10 +279,26 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 								window.setTimeout(() => setOpen(false), 150);
 							}}
 						/>
-            <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-400">
-              <span>⌘</span>
-              <span>K</span>
-            </span>
+            <div className="hidden sm:flex items-center gap-2">
+              {trimmedQuery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setResults([]);
+                    setOpen(false);
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-slate-600"
+                  aria-label="Clear search"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              ) : null}
+              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-400">
+                <span>⌘</span>
+                <span>K</span>
+              </span>
+            </div>
           </div>
           {open ? (
             <div className="absolute z-20 mt-2 w-full rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">

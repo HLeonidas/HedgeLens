@@ -38,18 +38,20 @@ export function Sidebar({ onNavClick, user }: SidebarProps) {
 	];
 
 	return (
-		<aside className="w-64 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex flex-col sticky top-0 h-screen">
-			<Link href={"/" as Route} onClick={onNavClick} className="p-6 flex items-center gap-3">
-				<div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-white">
+		<aside className="w-64 border-r border-border-light dark:border-border-dark bg-white dark:bg-slate-900 flex flex-col sticky top-0 h-screen">
+			<Link href={"/" as Route} onClick={onNavClick} className="p-5 pb-7 flex items-center gap-3">
+				<div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-sm">
 					<span className="material-symbols-outlined text-sm">insights</span>
 				</div>
-				<span className="font-bold text-xl tracking-tight">HedgeLens</span>
+				<span className="font-bold text-lg tracking-tight text-slate-900 dark:text-slate-100">
+					HedgeLens
+				</span>
 			</Link>
 
-			<nav className="flex-1 px-4 space-y-6 overflow-y-auto pt-4">
+			<nav className="flex-1 px-4 space-y-6 overflow-y-auto pt-2 pb-4">
 				{navSections.map((section) => (
 					<div key={section.id}>
-						<p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 px-2">
+						<p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-2">
 							{section.label}
 						</p>
 						<ul className="space-y-1">
@@ -75,7 +77,7 @@ export function Sidebar({ onNavClick, user }: SidebarProps) {
 						{watchlist.map((item) => (
 							<li
 								key={item.isin}
-								className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-border-light dark:border-border-dark flex justify-between items-center text-xs"
+								className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-border-light dark:border-border-dark flex justify-between items-center text-xs text-slate-600 dark:text-slate-300"
 							>
 								<span className="font-mono">{item.isin}</span>
 								<span className="material-symbols-outlined text-xs opacity-50">refresh</span>
@@ -89,7 +91,7 @@ export function Sidebar({ onNavClick, user }: SidebarProps) {
 				<Link
 					href={"/settings" as Route}
 					onClick={onNavClick}
-					className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+					className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
 				>
 					<span className="material-symbols-outlined text-base">settings</span> Settings
 				</Link>

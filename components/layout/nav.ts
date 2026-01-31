@@ -7,6 +7,7 @@ export type NavItem = {
 	exact?: boolean;
 	badgeKey?: "projects" | "scenariosRunning";
 	isNotReleased?: boolean;
+	hideSectionBreadcrumb?: boolean;
 };
 
 export type NavSection = {
@@ -17,28 +18,28 @@ export type NavSection = {
 };
 
 export const navSections: NavSection[] = [
-	{
-		id: "main",
-		label: "Main",
-		items: [
-			{
-				href: "/dashboard",
-				label: "Dashboard",
-				icon: "dashboard",
-				title: "Dashboard",
-				subtitle: "Portfolio overview",
-				exact: true,
-			},
-			{
-				href: "/projects",
-				label: "Projects",
-				icon: "folder",
-				title: "Projects",
-				subtitle: "ISIN lookup and tracking",
-				badgeKey: "projects",
-			},
-		],
-	},
+		{
+			id: "main",
+			label: "Main",
+			items: [
+				{
+					href: "/dashboard",
+					label: "Dashboard",
+					icon: "dashboard",
+					title: "Dashboard",
+					subtitle: "Portfolio overview",
+					exact: true,
+				},
+				{
+					href: "/projects",
+					label: "Projects",
+					icon: "folder",
+					title: "Projects",
+					subtitle: "ISIN lookup and tracking",
+					badgeKey: "projects",
+				},
+			],
+		},
 	{
 		id: "analysis",
 		label: "Analysis",
@@ -111,7 +112,16 @@ export const navSections: NavSection[] = [
 	},
 ];
 
-export const navItems = navSections.flatMap((section) => section.items);
+const settingsNavItem: NavItem = {
+	href: "/settings",
+	label: "Settings",
+	icon: "settings",
+	title: "Settings",
+	subtitle: "User preferences",
+	hideSectionBreadcrumb: true,
+};
+
+export const navItems = [...navSections.flatMap((section) => section.items), settingsNavItem];
 
 export function getRouteMeta(pathname: string) {
 	const match = navItems.find((item) =>
@@ -124,6 +134,6 @@ export function getRouteMeta(pathname: string) {
 	return {
 		title: match?.title ?? "Dashboard",
 		subtitle: match?.subtitle ?? "",
-		sectionLabel: section?.label ?? "",
+		sectionLabel: match?.hideSectionBreadcrumb ? "" : section?.label ?? "",
 	};
 }
