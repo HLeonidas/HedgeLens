@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Menu } from "@headlessui/react";
+import { Menu, Popover } from "@headlessui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -1384,9 +1384,9 @@ export default function ProjectDetailPage() {
   function priceSourceLabel(source: Project["underlyingLastPriceSource"]) {
     switch (source) {
       case "alpha_quote":
-        return "Alpha Preis (Quote)";
+        return "Aktuellster Preis";
       case "massive_prev":
-				return "Massive Schlusskurs (Prev)";
+				return "Letzter Schlusskurs";
 			case "manual":
 				return "Manuell gesetzt";
 			default:
@@ -1534,38 +1534,51 @@ export default function ProjectDetailPage() {
 										</span>
 										{showTickerOverview ? "Hide Ticker Overview" : "Show Ticker Overview"}
 									</button>
-									<button
-										type="button"
-										onClick={() => handleFetchTickerInfo("quote")}
-										disabled={!project.underlyingSymbol || tickerLoading}
-										className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
-									>
-										<span className="material-symbols-outlined text-base">payments</span>
-										{tickerLoading ? "Lädt..." : "Alpha Preis (Quote)"}
-									</button>
+									<Popover className="relative inline-flex group">
+										<Popover.Button
+											type="button"
+											onClick={() => handleFetchTickerInfo("quote")}
+											disabled={!project.underlyingSymbol || tickerLoading}
+											className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+										>
+											<span className="material-symbols-outlined text-base">payments</span>
+											{tickerLoading ? "Lädt..." : "Aktuellster Preis"}
+										</Popover.Button>
+										<Popover.Panel
+											static
+											className="pointer-events-none absolute left-0 top-full mt-2 w-max rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+										>
+											Aktuellster Preis aktualisiert:{" "}
+											{project.tickerFetchedAt
+												? new Date(project.tickerFetchedAt).toLocaleString()
+												: "—"}
+										</Popover.Panel>
+									</Popover>
 
-									<button
-										type="button"
-										onClick={handleFetchMassivePrevBar}
-										disabled={!project.underlyingSymbol || massivePrevLoading}
-										className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
-									>
-										<span className="material-symbols-outlined text-base">history</span>
-										{massivePrevLoading ? "Lädt..." : "Massive Schlusskurs (Prev)"}
-									</button>
-									{project.tickerFetchedAt ? (
-										<span className="text-[11px] text-slate-400">
-											Letztes Update: {new Date(project.tickerFetchedAt).toLocaleString()}
-										</span>
-									) : null}
-									{project.massiveTickerFetchedAt ? (
-										<span className="text-[11px] text-slate-400">
-											Massive: {new Date(project.massiveTickerFetchedAt).toLocaleString()}
-										</span>
-									) : null}
+									<Popover className="relative inline-flex group">
+										<Popover.Button
+											type="button"
+											onClick={handleFetchMassivePrevBar}
+											disabled={!project.underlyingSymbol || massivePrevLoading}
+											className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+										>
+											<span className="material-symbols-outlined text-base">history</span>
+											{massivePrevLoading ? "Lädt..." : "Letzter Schlusskurs"}
+										</Popover.Button>
+										<Popover.Panel
+											static
+											className="pointer-events-none absolute left-0 top-full mt-2 w-max rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+										>
+											Letzter Schlusskurs aktualisiert:{" "}
+											{project.massivePrevBarFetchedAt
+												? new Date(project.massivePrevBarFetchedAt).toLocaleString()
+												: "—"}
+										</Popover.Panel>
+									</Popover>
 									{project.massivePrevBarFetchedAt ? (
 										<span className="text-[11px] text-slate-400">
-											Prev: {new Date(project.massivePrevBarFetchedAt).toLocaleString()}
+											Letzter Schlusskurs aktualisiert:{" "}
+											{new Date(project.massivePrevBarFetchedAt).toLocaleString()}
 										</span>
 									) : null}
 								</div>
@@ -1760,26 +1773,48 @@ export default function ProjectDetailPage() {
 												) : null}
 											</div>
 											<div className="mt-2 flex items-center gap-2 sm:mt-0">
-												<button
-													type="button"
-													onClick={() => handleFetchTickerInfo("overview")}
-													disabled={!project.underlyingSymbol || tickerLoading}
-													className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
-												>
-													<span className="material-symbols-outlined text-base">
-														travel_explore
-													</span>
-													{tickerLoading ? "Lädt..." : "Alpha Overview"}
-												</button>
-												<button
-													type="button"
-													onClick={() => handleFetchMassiveInfo()}
-													disabled={!project.underlyingSymbol || massiveLoading}
-													className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
-												>
-													<span className="material-symbols-outlined text-base">insights</span>
-													{massiveLoading ? "Lädt..." : "Massive Profil"}
-												</button>
+												<Popover className="relative inline-flex group">
+													<Popover.Button
+														type="button"
+														onClick={() => handleFetchTickerInfo("overview")}
+														disabled={!project.underlyingSymbol || tickerLoading}
+														className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+													>
+														<span className="material-symbols-outlined text-base">
+															travel_explore
+														</span>
+														{tickerLoading ? "Lädt..." : "Unternehmensdaten"}
+													</Popover.Button>
+													<Popover.Panel
+														static
+														className="pointer-events-none absolute left-0 top-full mt-2 w-max rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+													>
+														Unternehmensdaten aktualisiert:{" "}
+														{project.tickerFetchedAt
+															? new Date(project.tickerFetchedAt).toLocaleString()
+															: "—"}
+													</Popover.Panel>
+												</Popover>
+												<Popover className="relative inline-flex group">
+													<Popover.Button
+														type="button"
+														onClick={() => handleFetchMassiveInfo()}
+														disabled={!project.underlyingSymbol || massiveLoading}
+														className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+													>
+														<span className="material-symbols-outlined text-base">insights</span>
+														{massiveLoading ? "Lädt..." : "Unternehmensprofil"}
+													</Popover.Button>
+													<Popover.Panel
+														static
+														className="pointer-events-none absolute left-0 top-full mt-2 w-max rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+													>
+														Unternehmensprofil aktualisiert:{" "}
+														{project.massiveTickerFetchedAt
+															? new Date(project.massiveTickerFetchedAt).toLocaleString()
+															: "—"}
+													</Popover.Panel>
+												</Popover>
 											</div>
 										</div>
 										<div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-xs text-slate-600">
