@@ -136,6 +136,7 @@ export default function ProjectDetailPage() {
 	const [showDeleteProject, setShowDeleteProject] = useState(false);
 	const [showDeletePosition, setShowDeletePosition] = useState(false);
 	const [deletePositionTarget, setDeletePositionTarget] = useState<Position | null>(null);
+	const [deletePositionLoading, setDeletePositionLoading] = useState(false);
 	const [tickerLoading, setTickerLoading] = useState(false);
 	const [tickerError, setTickerError] = useState<string | null>(null);
 	const [massiveLoading, setMassiveLoading] = useState(false);
@@ -154,15 +155,17 @@ export default function ProjectDetailPage() {
 	const [underlyingPriceLoading, setUnderlyingPriceLoading] = useState(false);
 	const [underlyingPriceError, setUnderlyingPriceError] = useState<string | null>(null);
   const [showPriceModal, setShowPriceModal] = useState(false);
-  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+	const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [fxRates, setFxRates] = useState<Record<string, ExchangeRate>>({});
   const [fxError, setFxError] = useState<string | null>(null);
+	const [preferredCurrency, setPreferredCurrency] = useState("EUR");
 	const autoPrevRef = useRef(false);
 	const autoMassiveRef = useRef(false);
 	const [payloadModal, setPayloadModal] = useState<{
 		title: string;
 		payload: Record<string, unknown> | null;
 	} | null>(null);
+	const [payloadCopyStatus, setPayloadCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 	const [showRiskScoreModal, setShowRiskScoreModal] = useState(false);
 	const [showTickerDetails, setShowTickerDetails] = useState(false);
 	const [showTickerModal, setShowTickerModal] = useState(false);
@@ -199,6 +202,21 @@ export default function ProjectDetailPage() {
 	const [lookupLoading, setLookupLoading] = useState(false);
 	const [lookupError, setLookupError] = useState<string | null>(null);
 	const [lookupSuccess, setLookupSuccess] = useState(false);
+	const [lookupOsLoading, setLookupOsLoading] = useState(false);
+	const [lookupOsError, setLookupOsError] = useState<string | null>(null);
+	const [lookupOsInfo, setLookupOsInfo] = useState<{
+		productName?: string | null;
+		issuer?: string | null;
+		underlying?: string | null;
+		type?: string | null;
+		strike?: string | null;
+		ratio?: string | null;
+		currency?: string | null;
+		valuationDate?: string | null;
+		lastTradingDay?: string | null;
+		payoutDate?: string | null;
+		breakEven?: string | null;
+	} | null>(null);
 
   const canAdd = useMemo(() => {
     const baseValid = Boolean(isin.trim()) && Number(size) > 0 && entryPrice !== "";
@@ -247,6 +265,16 @@ export default function ProjectDetailPage() {
 	const isLookupMode =
 		!editingPositionId && positionCreateMode === "lookup" && positionAssetType === "options";
 	const showLookupOnlyFields = isLookupMode && lookupSuccess;
+	const payloadJson = useMemo(
+		() => (payloadModal?.payload ? JSON.stringify(payloadModal.payload, null, 2) : ""),
+		[payloadModal]
+	);
+
+	useEffect(() => {
+		if (payloadModal) {
+			setPayloadCopyStatus("idle");
+		}
+	}, [payloadModal]);
 
   const totalValueBase = useMemo(() => {
     if (!project) return null;
@@ -693,7 +721,7 @@ export default function ProjectDetailPage() {
     setSide("call");
     setSize(1);
     setEntryPrice("");
-    setPositionCurrency(project?.baseCurrency ?? "EUR");
+    setPositionCurrency((preferredCurrency || project?.baseCurrency || "EUR").toUpperCase());
     setMarketPrice("");
     setUnderlyingSymbol("");
     setUnderlyingPrice("");
@@ -706,6 +734,9 @@ export default function ProjectDetailPage() {
     setLookupValue("");
     setLookupError(null);
 		setLookupSuccess(false);
+		setLookupOsLoading(false);
+		setLookupOsError(null);
+		setLookupOsInfo(null);
     setPositionCreateMode("lookup");
     setPositionAssetType("options");
   }
@@ -715,6 +746,9 @@ export default function ProjectDetailPage() {
 		setLookupLoading(true);
 		setLookupError(null);
 		setLookupSuccess(false);
+		setLookupOsLoading(false);
+		setLookupOsError(null);
+		setLookupOsInfo(null);
 		try {
 			const response = await fetch("/api/isin/lookup", {
 				method: "POST",
@@ -756,6 +790,7 @@ export default function ProjectDetailPage() {
 				setMarketPrice(payload.price);
 			}
 
+			setLookupOsLoading(true);
 			try {
 				const importResponse = await fetch("/api/import/onvista", {
 					method: "POST",
@@ -768,9 +803,73 @@ export default function ProjectDetailPage() {
 				if (!importResponse.ok || !importPayload?.ok || !importPayload.data) {
 					throw new Error(importPayload?.error ?? "Onvista scrape failed");
 				}
+				const data = importPayload.data as {
+					details?: {
+						stammdaten?: Record<string, { raw?: string | null }>;
+						handelsdaten?: Record<string, { raw?: string | null }>;
+						kennzahlen?: Record<string, { raw?: string | null }>;
+					};
+				};
+				const stammdaten = data.details?.stammdaten ?? {};
+				const handelsdaten = data.details?.handelsdaten ?? {};
+				const kennzahlen = data.details?.kennzahlen ?? {};
+				const getRaw = (
+					section: Record<string, { raw?: string | null }>,
+					key: string
+				) => section[key]?.raw ?? null;
+
+				const productName = getRaw(stammdaten, "produktname");
+				if (productName) setName(productName);
+				const typeRaw = getRaw(stammdaten, "typ");
+				if (typeRaw) {
+					setSide(typeRaw.toLowerCase().includes("put") ? "put" : "call");
+				}
+				const strikeRaw = getRaw(stammdaten, "basispreis");
+				const strikeValue = parseGermanNumber(strikeRaw);
+				if (strikeValue !== null) setStrike(strikeValue);
+				const ratioRaw = getRaw(stammdaten, "bezugsverhältnis");
+				const ratioValue = parseGermanNumber(ratioRaw);
+				if (ratioValue !== null) setRatio(ratioValue);
+				const currencyRaw = getRaw(stammdaten, "währung");
+				if (currencyRaw) setPositionCurrency(currencyRaw.toUpperCase());
+				const underlyingRaw = getRaw(stammdaten, "basiswert");
+				if (underlyingRaw) setUnderlyingSymbol(underlyingRaw);
+
+				const expiryRaw =
+					getRaw(handelsdaten, "bewertungstag") ??
+					getRaw(handelsdaten, "letzter handelstag") ??
+					getRaw(handelsdaten, "rückzahlungstag");
+				const expiryIso = parseGermanDate(expiryRaw);
+				if (expiryIso) setExpiry(expiryIso);
+
+				const lastRaw =
+					getRaw(kennzahlen, "letzter kurs") ??
+					getRaw(kennzahlen, "aktueller briefkurs") ??
+					getRaw(kennzahlen, "aktueller geldkurs");
+				const lastValue = parseGermanNumber(lastRaw);
+				if (lastValue !== null) setMarketPrice(lastValue);
+
+				setLookupOsInfo({
+					productName: getRaw(stammdaten, "produktname"),
+					issuer: getRaw(stammdaten, "emittent"),
+					underlying: getRaw(stammdaten, "basiswert"),
+					type: getRaw(stammdaten, "typ"),
+					strike: getRaw(stammdaten, "basispreis"),
+					ratio: getRaw(stammdaten, "bezugsverhältnis"),
+					currency: getRaw(stammdaten, "währung"),
+					valuationDate: getRaw(handelsdaten, "bewertungstag"),
+					lastTradingDay: getRaw(handelsdaten, "letzter handelstag"),
+					payoutDate: getRaw(handelsdaten, "rückzahlungstag"),
+					breakEven: getRaw(kennzahlen, "break even"),
+				});
 				setLookupSuccess(true);
 			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "Onvista Daten nicht verfügbar.";
+				setLookupOsError(message);
 				throw err;
+			} finally {
+				setLookupOsLoading(false);
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Lookup fehlgeschlagen";
@@ -815,14 +914,17 @@ export default function ProjectDetailPage() {
         underlyingPrice:
           normalizedPricingMode === "model" ? Number(underlyingPrice) : undefined,
         strike: normalizedPricingMode === "model" ? Number(strike) : undefined,
-        expiry: normalizedPricingMode === "model" ? expiry : undefined,
+        expiry:
+          positionAssetType === "options" && expiry
+            ? expiry
+            : undefined,
         volatility:
           normalizedPricingMode === "model" ? Number(volatilityPct) / 100 : undefined,
         rate: normalizedPricingMode === "model" ? Number(ratePct) / 100 : undefined,
         dividendYield:
           normalizedPricingMode === "model" ? Number(dividendYieldPct || 0) / 100 : undefined,
         ratio:
-          normalizedPricingMode === "model" && ratio !== "" ? Number(ratio) : undefined,
+          positionAssetType === "options" && ratio !== "" ? Number(ratio) : undefined,
       };
 
 			const response = editingPositionId
@@ -865,6 +967,7 @@ export default function ProjectDetailPage() {
 	async function handleDeletePosition() {
 		if (!projectId || !deletePositionTarget) return;
 		setLoading(true);
+		setDeletePositionLoading(true);
 		setError(null);
 
 		try {
@@ -888,6 +991,7 @@ export default function ProjectDetailPage() {
 			setError(message);
 		} finally {
 			setLoading(false);
+			setDeletePositionLoading(false);
 			setShowDeletePosition(false);
 			setDeletePositionTarget(null);
 		}
@@ -921,6 +1025,30 @@ export default function ProjectDetailPage() {
 	}
 
 	useEffect(() => {
+		let ignore = false;
+		async function loadMe() {
+			try {
+				const response = await fetch("/api/me");
+				if (!response.ok) return;
+				const data = (await response.json()) as {
+					user?: { preferred_currency?: string };
+				};
+				if (ignore) return;
+				if (data.user?.preferred_currency) {
+					setPreferredCurrency(data.user.preferred_currency);
+				}
+			} catch {
+				// Ignore preference load errors; fallback to defaults.
+			}
+		}
+
+		void loadMe();
+		return () => {
+			ignore = true;
+		};
+	}, []);
+
+	useEffect(() => {
 		void loadProject();
 	}, [projectId]);
 
@@ -939,7 +1067,6 @@ export default function ProjectDetailPage() {
         "USD").toUpperCase()
     );
     setTickerDraft(project.underlyingSymbol ?? "");
-    setPositionCurrency(project.baseCurrency ?? "EUR");
   }, [project]);
 
   useEffect(() => {
@@ -1456,6 +1583,25 @@ export default function ProjectDetailPage() {
 		return parsed > 1.5 ? parsed / 100 : parsed;
 	}
 
+	function parseGermanNumber(value?: string | null) {
+		if (!value) return null;
+		const cleaned = value.replace(/\s+/g, " ").trim();
+		if (!cleaned) return null;
+		const numeric = cleaned.replace(/[^\d,.\-]/g, "");
+		if (!numeric) return null;
+		const normalized = numeric.replace(/\./g, "").replace(",", ".");
+		const parsed = Number(normalized);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	function parseGermanDate(value?: string | null) {
+		if (!value) return null;
+		const match = value.trim().match(/(\d{2})\.(\d{2})\.(\d{4})/);
+		if (!match) return null;
+		const [, day, month, year] = match;
+		return `${year}-${month}-${day}`;
+	}
+
 	function riskScoreTone(score: number | null) {
 		if (score === null) return "bg-slate-100 text-slate-500";
 		if (score <= 35) return "bg-emerald-100 text-emerald-700";
@@ -1465,6 +1611,32 @@ export default function ProjectDetailPage() {
 
 	function openPayloadModal(title: string, payload: Record<string, unknown> | null) {
 		setPayloadModal({ title, payload });
+	}
+
+	async function handleCopyPayload() {
+		if (!payloadJson) return;
+		try {
+			if (navigator?.clipboard?.writeText) {
+				await navigator.clipboard.writeText(payloadJson);
+			} else {
+				const textarea = document.createElement("textarea");
+				textarea.value = payloadJson;
+				textarea.setAttribute("readonly", "true");
+				textarea.style.position = "absolute";
+				textarea.style.left = "-9999px";
+				document.body.appendChild(textarea);
+				textarea.select();
+				document.execCommand("copy");
+				document.body.removeChild(textarea);
+			}
+			setPayloadCopyStatus("copied");
+		} catch {
+			setPayloadCopyStatus("error");
+		}
+
+		window.setTimeout(() => {
+			setPayloadCopyStatus("idle");
+		}, 2000);
 	}
 
   function priceSourceLabel(source: Project["underlyingLastPriceSource"]) {
@@ -2802,9 +2974,84 @@ export default function ProjectDetailPage() {
 									<p className="text-xs text-rose-600">{lookupError}</p>
 								) : null}
 								{lookupSuccess ? (
-									<div className="flex items-center gap-2 text-xs text-emerald-600">
-										<span className="material-symbols-outlined text-base">check_circle</span>
-										ISIN found.
+									<div className="space-y-2">
+										<div className="flex items-center gap-2 text-xs text-emerald-600">
+											<span className="material-symbols-outlined text-base">check_circle</span>
+											ISIN found.
+										</div>
+										{lookupOsLoading ? (
+											<div className="flex items-center gap-2 text-xs text-slate-500">
+												<span className="material-symbols-outlined text-base animate-spin">
+													progress_activity
+												</span>
+												Optionsschein-Details werden geladen…
+											</div>
+										) : null}
+										{lookupOsError ? (
+											<p className="text-xs text-rose-600">{lookupOsError}</p>
+										) : null}
+										{lookupOsInfo ? (
+											<div className="rounded-xl border border-slate-200/70 bg-slate-50 p-3 text-xs text-slate-600">
+												<p className="text-[11px] uppercase font-semibold text-slate-400">
+													Optionsschein
+												</p>
+												<p className="mt-1 text-sm font-semibold text-slate-800">
+													{lookupOsInfo.productName ?? "—"}
+												</p>
+												<div className="mt-3 grid gap-2 sm:grid-cols-2">
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Emittent</p>
+														<p className="text-slate-700">{lookupOsInfo.issuer ?? "—"}</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Basiswert</p>
+														<p className="text-slate-700">{lookupOsInfo.underlying ?? "—"}</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Typ</p>
+														<p className="text-slate-700">{lookupOsInfo.type ?? "—"}</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Basispreis</p>
+														<p className="text-slate-700">{lookupOsInfo.strike ?? "—"}</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">
+															Bezugsverhältnis
+														</p>
+														<p className="text-slate-700">{lookupOsInfo.ratio ?? "—"}</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Währung</p>
+														<p className="text-slate-700">{lookupOsInfo.currency ?? "—"}</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Bewertungstag</p>
+														<p className="text-slate-700">
+															{lookupOsInfo.valuationDate ?? "—"}
+														</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">
+															Letzter Handelstag
+														</p>
+														<p className="text-slate-700">
+															{lookupOsInfo.lastTradingDay ?? "—"}
+														</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Rückzahlung</p>
+														<p className="text-slate-700">
+															{lookupOsInfo.payoutDate ?? "—"}
+														</p>
+													</div>
+													<div>
+														<p className="text-[10px] uppercase text-slate-400">Break Even</p>
+														<p className="text-slate-700">{lookupOsInfo.breakEven ?? "—"}</p>
+													</div>
+												</div>
+											</div>
+										) : null}
 									</div>
 								) : null}
 							</div>
@@ -3276,17 +3523,18 @@ export default function ProjectDetailPage() {
 						<button
 							type="button"
 							onClick={() => setShowDeletePosition(false)}
-							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors disabled:opacity-60"
+							disabled={deletePositionLoading}
 						>
 							Cancel
 						</button>
 						<button
 							type="button"
 							onClick={handleDeletePosition}
-							className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
-							disabled={loading}
+							className="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+							disabled={deletePositionLoading}
 						>
-							Delete position
+							{deletePositionLoading ? "Deleting..." : "Delete position"}
 						</button>
 					</div>
 				</div>
@@ -3713,19 +3961,36 @@ export default function ProjectDetailPage() {
 							</h3>
 							<p className="text-sm text-slate-500 mt-1">Raw payload for inspection.</p>
 						</div>
-						<button
-							type="button"
-							onClick={() => setPayloadModal(null)}
-							className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-						>
-							<span className="material-symbols-outlined">close</span>
-						</button>
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={handleCopyPayload}
+								disabled={!payloadJson}
+								className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
+							>
+								<span className="material-symbols-outlined text-base">
+									{payloadCopyStatus === "copied" ? "done" : "content_copy"}
+								</span>
+								{payloadCopyStatus === "copied"
+									? "Copied"
+									: payloadCopyStatus === "error"
+										? "Copy failed"
+										: "Copy JSON"}
+							</button>
+							<button
+								type="button"
+								onClick={() => setPayloadModal(null)}
+								className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+							>
+								<span className="material-symbols-outlined">close</span>
+							</button>
+						</div>
 					</div>
 					<div className="p-6">
 						<div className="max-h-[60vh] overflow-y-auto rounded-lg border border-slate-200/70 bg-slate-50 p-3 text-[11px] text-slate-600 custom-scrollbar">
 							{payloadModal?.payload ? (
 								<pre className="whitespace-pre-wrap break-words">
-									{JSON.stringify(payloadModal.payload, null, 2)}
+									{payloadJson}
 								</pre>
 							) : (
 								<p className="text-slate-400">Kein Payload vorhanden.</p>

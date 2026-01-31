@@ -17,12 +17,25 @@ export function parseDetailsPage(html: string): OnvistaDetailsData {
 
 function parseDetailsFromDom($: cheerio.CheerioAPI): OnvistaDetailsData {
   const stammdaten = parseTableSection($, "Stammdaten");
-  const kennzahlen = parseTableSection($, "Optionsschein-Kennzahlen");
-  const handelsdaten = parseTableSection($, "Handelsdaten");
-  const hebel = parseTableSection($, "Hebel");
-  const volatilitaet = parseTableSection($, "Volatilität");
-  const laufzeit = parseTableSection($, "Laufzeit");
-  const zinsniveau = parseTableSection($, "Zinsniveau");
+  const optionscheinTableSections = parseOptionsscheinKennzahlenTable($);
+  const kennzahlen = mergeSection(
+    parseTableSection($, "Optionsschein-Kennzahlen"),
+    optionscheinTableSections?.kennzahlen
+  );
+  const handelsdaten = mergeSection(
+    parseTableSection($, "Handelsdaten"),
+    optionscheinTableSections?.handelsdaten
+  );
+  const hebel = mergeSection(parseTableSection($, "Hebel"), optionscheinTableSections?.hebel);
+  const volatilitaet = mergeSection(
+    parseTableSection($, "Volatilität"),
+    optionscheinTableSections?.volatilitaet
+  );
+  const laufzeit = mergeSection(parseTableSection($, "Laufzeit"), optionscheinTableSections?.laufzeit);
+  const zinsniveau = mergeSection(
+    parseTableSection($, "Zinsniveau"),
+    optionscheinTableSections?.zinsniveau
+  );
   const weitereKurse = parseWeitereKurse($);
 
   const description = extractDescription($);
@@ -46,7 +59,7 @@ function mergeDetails(primary: OnvistaDetailsData | null, fallback: OnvistaDetai
     stammdaten: { ...fallback.stammdaten, ...primary.stammdaten },
     description: primary.description ?? fallback.description ?? null,
     kennzahlen: { ...fallback.kennzahlen, ...primary.kennzahlen },
-    handelsdaten: { ...fallback.handelsdaten, ...primary.handelsdaten },
+    handelsdaten: { ...primary.handelsdaten, ...fallback.handelsdaten },
     hebel: { ...fallback.hebel, ...primary.hebel },
     volatilitaet: { ...fallback.volatilitaet, ...primary.volatilitaet },
     laufzeit: { ...fallback.laufzeit, ...primary.laufzeit },
@@ -63,14 +76,79 @@ function parseTableSection($: cheerio.CheerioAPI, heading: string) {
   rows.each((_, row) => {
     const cells = $(row).find("th,td");
     if (cells.length < 2) return;
-    const label = $(cells[0]).text().trim();
-    const value = $(cells[1]).text().trim();
-    if (!label || !value) return;
-    const normalized = normalizeLabel(label);
-    const parsed = parseValue(normalized, value);
-    result[normalized] = toRawValue(label, value, parsed);
+    for (let i = 0; i + 1 < cells.length; i += 2) {
+      const label = $(cells[i]).text().trim();
+      const value = $(cells[i + 1]).text().trim();
+      if (!label || !value) continue;
+      const normalized = normalizeLabel(label);
+      const parsed = parseValue(normalized, value);
+      result[normalized] = toRawValue(label, value, parsed);
+    }
   });
   return result;
+}
+
+function mergeSection(primary: Record<string, RawValue>, fallback?: Record<string, RawValue>) {
+  if (!fallback) return primary;
+  return { ...fallback, ...primary };
+}
+
+function parseOptionsscheinKennzahlenTable($: cheerio.CheerioAPI) {
+  const table = findTableByTitle($, "Optionsschein-Kennzahlen");
+  if (!table) return null;
+
+  const sections = {
+    kennzahlen: {} as Record<string, RawValue>,
+    handelsdaten: {} as Record<string, RawValue>,
+    hebel: {} as Record<string, RawValue>,
+    volatilitaet: {} as Record<string, RawValue>,
+    laufzeit: {} as Record<string, RawValue>,
+    zinsniveau: {} as Record<string, RawValue>,
+  };
+
+  let current: keyof typeof sections = "kennzahlen";
+
+  table.find("tr").each((_, row) => {
+    const cells = $(row).find("th,td");
+    if (cells.length === 0) return;
+
+    if (cells.length === 1) {
+      const label = $(cells[0]).text().trim();
+      if (!label) return;
+      const normalized = normalizeLabel(label);
+      const section = mapSectionHeader(normalized);
+      if (section) current = section;
+      return;
+    }
+
+    if (cells.length < 2) return;
+    for (let i = 0; i + 1 < cells.length; i += 2) {
+      const label = $(cells[i]).text().trim();
+      const value = $(cells[i + 1]).text().trim();
+      if (!label) continue;
+      if (!value) {
+        const normalized = normalizeLabel(label);
+        const section = mapSectionHeader(normalized);
+        if (section) current = section;
+        continue;
+      }
+      const normalized = normalizeLabel(label);
+      const parsed = parseValue(normalized, value);
+      sections[current][normalized] = toRawValue(label, value, parsed);
+    }
+  });
+
+  return sections;
+}
+
+function mapSectionHeader(normalized: string) {
+  if (normalized.includes("handelsdaten")) return "handelsdaten";
+  if (normalized.includes("hebel")) return "hebel";
+  if (normalized.includes("volatil")) return "volatilitaet";
+  if (normalized.includes("laufzeit")) return "laufzeit";
+  if (normalized.includes("zinsniveau")) return "zinsniveau";
+  if (normalized.includes("kennzahlen")) return "kennzahlen";
+  return null;
 }
 
 function parseWeitereKurse($: cheerio.CheerioAPI) {

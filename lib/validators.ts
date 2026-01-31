@@ -86,6 +86,7 @@ const createMarketSchema = z.object({
     z.number().finite().min(0, "Market price must be 0 or greater")
   ),
   underlyingSymbol: z.string().trim().optional(),
+  expiry: dateSchema.optional(),
   ratio: optionalNumber(z.number().finite().gt(0, "Ratio must be greater than 0")),
   dividendYield: optionalNumber(z.number().finite().min(0, "Dividend yield must be 0 or greater")),
 });
