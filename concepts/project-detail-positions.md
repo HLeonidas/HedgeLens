@@ -23,7 +23,7 @@ A clear identification of the current project and its context.
 **Elements**
 - Project name (primary heading)
 - Optional project description
-- Visual project indicator (color / icon)
+- Visual project indicator (color / logo/icon if available)
 - Underlying asset / ticker (if provided)
 - Action buttons:
   - **Edit Project** (name, description, color)
@@ -39,27 +39,41 @@ A clear identification of the current project and its context.
 A compact overview of the most important project-level information.
 
 **Displayed Metrics**
-- Base currency
 - Risk profile (computed)
+- Risk score (1–100) with explanation modal
 - Put/Call ratio
 - Total number of positions
-- Aggregate exposure / value (if available)
-- Average leverage or volatility (optional)
+- Total value (EUR + USD)
+- Performance (percentage + absolute in EUR)
+- Underlying last price (with source + timestamp)
 
 **Visualization**
 - KPI cards for numeric values
-- Optional charts (Highcharts), for example:
-  - Put vs Call distribution
-  - Risk score breakdown
-  - Time-to-expiry distribution
+- The risk score card includes a modal that explains how the score is computed.
 
 **Behavior**
 - Metrics update automatically when positions change
-- Charts are read-only and purely informational
+- Underlying price card opens a modal to update the price and currency manually.
 
 ---
 
-### 3. Positions Table
+### 3. Ticker Overview (Collapsible)
+An expandable overview of the underlying ticker data and related payloads.
+
+**Elements**
+- Overview/Quote data (Alpha Vantage)
+- Massive payload (raw) if fetched
+- Buttons to fetch Overview/Quote and Massive data
+- Toggle to show/hide the full overview
+
+**Behavior**
+- Section can be hidden per user preference (stored in local storage).
+- The UI only loads one endpoint at a time to respect free-tier limits.
+- Errors from the provider are shown verbatim.
+
+---
+
+### 4. Positions Table
 The main working area of the page.
 
 **Purpose**
@@ -67,10 +81,10 @@ Manage all option warrant positions belonging to the project.
 
 **Table Columns**
 - Instrument (ISIN / name)
-- Side (Put / Call)
-- Size
-- Pricing mode (Market / Model)
-- Price / Value
+- Type/Shares (Spot / Call / Put + shares)
+- Entry (with currency + base currency conversion line)
+- Value (EUR + USD)
+- Performance (percentage + absolute in EUR)
 - Leverage
 - Time to expiry
 - Actions
@@ -89,16 +103,24 @@ Manage all option warrant positions belonging to the project.
 
 ---
 
-### 4. Position Management Flows
+### 5. Position Management Flows
 
 #### Add Position
 - Triggered via “Add Position” button
-- Inputs:
+- Modes:
+  - **Optionsschein** (Call/Put)
+  - **Spot Aktie** (spot stock position)
+- Inputs (Optionsschein):
   - ISIN (lookup or manual)
   - Side (Put / Call)
-  - Size
+  - Shares
   - Pricing mode (Market / Model)
   - Pricing inputs (if model-based)
+- Inputs (Spot):
+  - Name + ticker are prefilled from the project
+  - Shares
+  - Entry price
+  - Currency
 - Validation:
   - Required fields
   - Numeric constraints
@@ -140,6 +162,41 @@ The project’s risk profile is **fully derived from its positions**.
 
 ---
 
+## Risk Score (1–100)
+The risk score is a numeric indicator combining **portfolio composition** and **market fundamentals**.
+
+**Inputs Used**
+- Options share vs spot share
+- Average ratio (leverage proxy)
+- Alpha Vantage overview values:
+  - Beta
+  - Market capitalization
+  - Profit margin
+  - ROA
+  - PE (Trailing/Forward where available)
+  - Price-to-book
+
+**UI**
+- A score pill shown in the Risk Profile card.
+- Clicking the score opens a modal explaining the breakdown.
+
+---
+
+## Underlying Price Management
+The page stores and displays the most recent underlying price.
+
+**Sources**
+- Alpha Vantage quote
+- Massive prev-bar
+- Manual entry
+
+**Behavior**
+- Manual price entry includes a **currency selector**.
+- The last updated time and source are displayed under the price.
+- The stored currency is used for spot valuation and conversions.
+
+---
+
 ## Functional Requirements
 
 ### API
@@ -157,6 +214,14 @@ The project’s risk profile is **fully derived from its positions**.
   - Delete position
 - `POST /api/projects/{id}/positions/{posId}/recompute`
   - Recompute model-based values
+- `POST /api/projects/{id}/ticker`
+  - Fetch Alpha Vantage overview or quote payloads
+- `POST /api/projects/{id}/ticker-massive`
+  - Fetch Massive ticker overview payload
+- `POST /api/projects/{id}/ticker-massive-prev`
+  - Fetch Massive previous-day bar for latest close
+- `GET/POST /api/exchange-rate`
+  - Fetch or manually update FX rates (cached for 48h)
 
 ---
 

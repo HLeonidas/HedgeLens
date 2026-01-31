@@ -163,6 +163,7 @@ export default function ProjectDetailPage() {
 		title: string;
 		payload: Record<string, unknown> | null;
 	} | null>(null);
+	const [showRiskScoreModal, setShowRiskScoreModal] = useState(false);
 	const [showTickerDetails, setShowTickerDetails] = useState(false);
 	const [showColorModal, setShowColorModal] = useState(false);
 	const [colorDraft, setColorDraft] = useState("#2563eb");
@@ -313,6 +314,98 @@ export default function ProjectDetailPage() {
     const baseCurrency = (project.baseCurrency ?? "EUR").toUpperCase();
     return convertValue(totalValueBase - totalEntryBase, baseCurrency, "EUR");
   }, [project, totalValueBase, totalEntryBase, fxRates]);
+
+  const riskScoreDetails = useMemo(() => {
+    if (!project) return null;
+    let score = 40;
+
+    const overview = project.tickerInfo?.overview ?? {};
+    const totalExposure = positions.reduce(
+      (sum, position) => sum + position.size * (position.ratio ?? 1),
+      0
+    );
+    const optionsExposure = positions.reduce(
+      (sum, position) =>
+        position.side === "spot" ? sum : sum + position.size * (position.ratio ?? 1),
+      0
+    );
+    const optionsShare = totalExposure > 0 ? optionsExposure / totalExposure : 0;
+    const optionsImpact = optionsShare * 30;
+    score += optionsImpact;
+
+    const averageRatio =
+      positions.length > 0
+        ? positions.reduce((sum, position) => sum + (position.ratio ?? 1), 0) /
+          positions.length
+        : 1;
+    const ratioImpact = averageRatio > 1 ? Math.min((averageRatio - 1) * 10, 10) : 0;
+    score += ratioImpact;
+
+    const beta = parseAlphaNumber(overview.Beta);
+    const betaImpact =
+      beta !== null ? Math.max(-10, Math.min(30, (beta - 1) * 15)) : 0;
+    score += betaImpact;
+
+    const marketCap = parseAlphaNumber(overview.MarketCapitalization);
+    let marketCapImpact = 0;
+    if (marketCap !== null) {
+      if (marketCap < 2e9) marketCapImpact = 15;
+      else if (marketCap < 1e10) marketCapImpact = 8;
+      else if (marketCap < 5e10) marketCapImpact = 3;
+    }
+    score += marketCapImpact;
+
+    const profitMargin = normalizePercentValue(overview.ProfitMargin);
+    let marginImpact = 0;
+    if (profitMargin !== null) {
+      if (profitMargin < 0) marginImpact = 10;
+      else if (profitMargin < 0.05) marginImpact = 5;
+      else if (profitMargin > 0.2) marginImpact = -5;
+    }
+    score += marginImpact;
+
+    const roa = normalizePercentValue(overview.ReturnOnAssetsTTM);
+    const roaImpact = roa !== null && roa < 0 ? 6 : 0;
+    score += roaImpact;
+
+    const pe = parseAlphaNumber(overview.PERatio ?? overview.TrailingPE);
+    let peImpact = 0;
+    if (pe === null || pe <= 0) peImpact = 8;
+    else if (pe > 60) peImpact = 10;
+    else if (pe > 30) peImpact = 5;
+    score += peImpact;
+
+    const priceToBook = parseAlphaNumber(overview.PriceToBookRatio);
+    let pbImpact = 0;
+    if (priceToBook !== null) {
+      if (priceToBook > 10) pbImpact = 10;
+      else if (priceToBook > 5) pbImpact = 5;
+    }
+    score += pbImpact;
+
+    const finalScore = Math.max(1, Math.min(100, Math.round(score)));
+
+    return {
+      score: finalScore,
+      baseScore: 40,
+      optionsShare,
+      optionsImpact,
+      averageRatio,
+      ratioImpact,
+      beta,
+      betaImpact,
+      marketCap,
+      marketCapImpact,
+      profitMargin,
+      marginImpact,
+      roa,
+      roaImpact,
+      pe,
+      peImpact,
+      priceToBook,
+      pbImpact,
+    };
+  }, [project, positions]);
 
 	async function loadProject() {
 		if (!projectId) return;
@@ -1194,6 +1287,12 @@ export default function ProjectDetailPage() {
 		return `${sign}${formatNumber((value * 100).toFixed(2))}%`;
 	}
 
+	function formatScoreDelta(value: number | null) {
+		if (value === null || !Number.isFinite(value)) return "—";
+		const sign = value > 0 ? "+" : "";
+		return `${sign}${formatNumber(value.toString(), { maximumFractionDigits: 2 })}`;
+	}
+
 	function riskDescription(profile: Project["riskProfile"]) {
 		switch (profile) {
 			case "conservative":
@@ -1205,6 +1304,29 @@ export default function ProjectDetailPage() {
 			default:
 				return "Profil noch nicht gesetzt.";
 		}
+	}
+
+	function parseAlphaNumber(value?: string) {
+		if (!value) return null;
+		const cleaned = value.replace(/,/g, "").trim();
+		if (!cleaned || cleaned.toLowerCase() === "none" || cleaned.toLowerCase() === "n/a") {
+			return null;
+		}
+		const parsed = Number(cleaned);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	function normalizePercentValue(value?: string) {
+		const parsed = parseAlphaNumber(value);
+		if (parsed === null) return null;
+		return parsed > 1.5 ? parsed / 100 : parsed;
+	}
+
+	function riskScoreTone(score: number | null) {
+		if (score === null) return "bg-slate-100 text-slate-500";
+		if (score <= 35) return "bg-emerald-100 text-emerald-700";
+		if (score <= 70) return "bg-amber-100 text-amber-700";
+		return "bg-rose-100 text-rose-700";
 	}
 
 	function openPayloadModal(title: string, payload: Record<string, unknown> | null) {
@@ -1740,7 +1862,14 @@ export default function ProjectDetailPage() {
             <div className="bg-surface-light border border-border-light p-4 rounded-xl">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-slate-500 uppercase">Risk Profile</p>
-                <span className="text-[10px] font-semibold text-slate-400 uppercase">Overview</span>
+                <button
+                  type="button"
+                  onClick={() => setShowRiskScoreModal(true)}
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase hover:text-slate-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">info</span>
+                  Score
+                </button>
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <div className="h-9 w-9 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center">
@@ -1756,16 +1885,6 @@ export default function ProjectDetailPage() {
                     {riskDescription(project.riskProfile)}
                   </span>
                 </div>
-              </div>
-              <div className="mt-3">
-                <span
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border inline-flex items-center gap-1 ${getRiskBadge(project.riskProfile).classes}`}
-                >
-                  <span className="material-symbols-outlined text-[12px]">
-                    {riskIcon(project.riskProfile)}
-                  </span>
-                  {getRiskBadge(project.riskProfile).label}
-                </span>
               </div>
             </div>
 						<div className="bg-surface-light border border-border-light p-4 rounded-xl">
@@ -2960,6 +3079,157 @@ export default function ProjectDetailPage() {
 						<button
 							type="button"
 							onClick={() => setShowCurrencyModal(false)}
+							className="px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+						>
+							Schließen
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<div
+				className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${showRiskScoreModal ? "" : "hidden"
+					}`}
+				onClick={() => setShowRiskScoreModal(false)}
+			/>
+			<div
+				className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${showRiskScoreModal ? "" : "pointer-events-none"
+					}`}
+				onClick={() => setShowRiskScoreModal(false)}
+				aria-hidden={!showRiskScoreModal}
+			>
+				<div
+					className={`w-full max-w-xl bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${showRiskScoreModal ? "scale-100 opacity-100" : "scale-95 opacity-0"
+						}`}
+					onClick={(event) => event.stopPropagation()}
+				>
+					<div className="p-6 border-b border-border-light flex items-center justify-between">
+						<div>
+							<h3 className="text-lg font-bold text-slate-900">Risk Score</h3>
+							<p className="text-sm text-slate-500 mt-1">
+								Herleitung des Scores (1–100).
+							</p>
+						</div>
+						<button
+							type="button"
+							onClick={() => setShowRiskScoreModal(false)}
+							className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+						>
+							<span className="material-symbols-outlined">close</span>
+						</button>
+					</div>
+					<div className="p-6">
+						{riskScoreDetails ? (
+							<div className="space-y-4 text-sm text-slate-600">
+								<div className="flex items-center justify-between text-slate-800 font-semibold">
+									<span>Gesamtscore</span>
+									<span>{riskScoreDetails.score}</span>
+								</div>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">Basis</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{riskScoreDetails.baseScore}
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">Options-Anteil</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{formatPercent(riskScoreDetails.optionsShare)}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.optionsImpact)})
+											</span>
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">Ø Ratio</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{formatNumber(riskScoreDetails.averageRatio.toString(), {
+												maximumFractionDigits: 2,
+											})}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.ratioImpact)})
+											</span>
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">Beta</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{riskScoreDetails.beta === null
+												? "—"
+												: formatNumber(riskScoreDetails.beta.toString(), {
+														maximumFractionDigits: 2,
+													})}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.betaImpact)})
+											</span>
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">Market Cap</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{riskScoreDetails.marketCap === null
+												? "—"
+												: formatCompact(riskScoreDetails.marketCap.toString())}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.marketCapImpact)})
+											</span>
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">Profit Margin</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{riskScoreDetails.profitMargin === null
+												? "—"
+												: formatPercent(riskScoreDetails.profitMargin)}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.marginImpact)})
+											</span>
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">ROA</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{riskScoreDetails.roa === null
+												? "—"
+												: formatPercent(riskScoreDetails.roa)}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.roaImpact)})
+											</span>
+										</p>
+									</div>
+									<div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3">
+										<p className="text-[11px] uppercase text-slate-400">PE / P/B</p>
+										<p className="mt-1 font-semibold text-slate-700">
+											{riskScoreDetails.pe === null
+												? "—"
+												: formatNumber(riskScoreDetails.pe.toString(), {
+														maximumFractionDigits: 2,
+													})}
+											<span className="ml-2 text-slate-500">
+												({formatScoreDelta(riskScoreDetails.peImpact)})
+											</span>
+										</p>
+										<p className="mt-1 text-[11px] text-slate-500">
+											P/B:{" "}
+											{riskScoreDetails.priceToBook === null
+												? "—"
+												: formatNumber(riskScoreDetails.priceToBook.toString(), {
+														maximumFractionDigits: 2,
+													})}{" "}
+											({formatScoreDelta(riskScoreDetails.pbImpact)})
+										</p>
+									</div>
+								</div>
+							</div>
+						) : (
+							<p className="text-sm text-slate-400">Keine Daten vorhanden.</p>
+						)}
+					</div>
+					<div className="p-6 border-t border-border-light bg-slate-50 flex justify-end rounded-b-2xl">
+						<button
+							type="button"
+							onClick={() => setShowRiskScoreModal(false)}
 							className="px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
 							Schließen
