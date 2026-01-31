@@ -1474,8 +1474,17 @@ export default function ProjectDetailPage() {
 								<div className="mt-3 flex flex-wrap items-center gap-2">
 									<button
 										type="button"
-										onClick={() => setShowTickerOverview((prev) => !prev)}
-										className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+										onClick={() =>
+											project.underlyingSymbol
+												? setShowTickerOverview((prev) => !prev)
+												: null
+										}
+										disabled={!project.underlyingSymbol}
+										className={`inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold shadow-sm ${
+											project.underlyingSymbol
+												? "text-slate-700 hover:border-slate-300"
+												: "text-slate-400 cursor-not-allowed"
+										}`}
 									>
 										<span className="material-symbols-outlined text-base">
 											{showTickerOverview ? "expand_less" : "expand_more"}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Popover } from "@headlessui/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -387,7 +388,7 @@ export default function ProjectsPage() {
 					</div>
         ) : (
           <div className="rounded-xl border border-border-light overflow-hidden bg-white">
-            <div className="overflow-x-auto overflow-y-visible">
+            <div className="overflow-x-auto overflow-y-hidden">
               <table className="w-full min-w-[980px] text-left border-collapse">
                 <thead>
                   <tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
@@ -396,7 +397,11 @@ export default function ProjectsPage() {
                     <th className="px-6 py-4">Risikoprofil</th>
                     <th className="px-6 py-4">Put/Call Ratio</th>
                     <th className="px-6 py-4">Positionen</th>
-                    <th className="px-6 py-4">Zuletzt aktualisiert</th>
+                    <th className="px-6 py-4 text-right">
+                      <span className="inline-flex items-center gap-2 text-slate-400">
+                        Info
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-light">
@@ -511,8 +516,18 @@ export default function ProjectsPage() {
                         <td className="px-6 py-4 font-medium text-sm text-slate-700">
                           {positions}
                         </td>
-                        <td className="px-6 font-medium py-4 text-sm text-slate-600">
-                          {new Date(project.updatedAt).toLocaleDateString()}
+                        <td className="px-6 py-4 text-right">
+                          <Popover className="relative inline-flex group">
+                            <Popover.Button className="inline-flex items-center justify-end text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 rounded">
+                              <span className="material-symbols-outlined text-base">info</span>
+                            </Popover.Button>
+                            <Popover.Panel
+                              static
+                              className="pointer-events-none absolute right-full top-1/2 mr-2 w-max -translate-y-1/2 rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                            >
+                              {new Date(project.updatedAt).toLocaleString()}
+                            </Popover.Panel>
+                          </Popover>
                         </td>
                       </tr>
                     );
