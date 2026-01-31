@@ -46,6 +46,16 @@ See `concepts/app-overview.md` for the full object relationship map.
 - `/analysis/optionsschein-rechner`: Optionsschein pricing calculator.
 - `/settings`: User list, theme toggle, session logout.
 
+## Header Behavior (Breadcrumbs + Search)
+- Breadcrumbs show **Section / Page** based on `components/layout/nav.ts`.
+- Detail views add a third crumb:
+  - `/projects/[id]` → project name fetched from `/api/projects/[id]`.
+  - `/analysis/optionsschein-rechner/[isin]` → ISIN shown as the third crumb.
+- Global search (header):
+  - Searches projects and positions via `/api/search`.
+  - If a valid ISIN is entered and no matching position exists, it opens
+    `/analysis/optionsschein-rechner/{ISIN}`.
+
 ## Key API Routes
 - Auth: `/api/auth/[...nextauth]`, `/api/me`, `/api/protected`
 - Projects & positions: `/api/projects`, `/api/projects/[id]`, `/api/projects/[id]/positions`

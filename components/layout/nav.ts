@@ -117,9 +117,13 @@ export function getRouteMeta(pathname: string) {
 	const match = navItems.find((item) =>
 		item.exact ? pathname === item.href : pathname.startsWith(item.href)
 	);
+	const section =
+		navSections.find((group) => group.items.some((item) => item.href === match?.href)) ??
+		null;
 
 	return {
 		title: match?.title ?? "Dashboard",
 		subtitle: match?.subtitle ?? "",
+		sectionLabel: section?.label ?? "",
 	};
 }

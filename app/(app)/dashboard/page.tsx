@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { HighchartsClient } from "@/components/charts/HighchartsClient";
+import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import {
 	AggregatedDashboard,
 	DashboardResponse,
@@ -65,6 +66,7 @@ export default function DashboardPage() {
 	const [warning, setWarning] = useState<string | null>(null);
 	const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 	const [preferredCurrency, setPreferredCurrency] = useState("EUR");
+	const [showCreate, setShowCreate] = useState(false);
 
 	const loadDashboard = useCallback(async () => {
 		setIsLoading(true);
@@ -263,8 +265,12 @@ export default function DashboardPage() {
 								Overview of ratios, exposure, and model health across all projects.
 							</p>
 							<div className="text-xs text-slate-400 mt-1">
-								Last refresh:{" "}
-								{lastRefreshedAt ? formatRelativeTime(lastRefreshedAt.toISOString()) : "loading..."}
+								{lastRefreshedAt
+									? formatRelativeTime(lastRefreshedAt.toISOString(), {
+											justNowLabel: "Updated just now",
+											justNowThresholdSeconds: 90,
+										})
+									: "loading..."}
 							</div>
 						</div>
 
@@ -287,13 +293,14 @@ export default function DashboardPage() {
 								Projects
 							</Link>
 
-							<Link
-								href="/projects?create=1"
+							<button
+								type="button"
+								onClick={() => setShowCreate(true)}
 								className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
 							>
 								<span className="material-symbols-outlined text-base">add</span>
 								Create Project
-							</Link>
+							</button>
 						</div>
 					</div>
 
@@ -356,13 +363,14 @@ export default function DashboardPage() {
 								Create a project with a few positions to unlock analytics, exposure breakdowns, and alerts.
 							</p>
 							<div className="mt-5 flex flex-col sm:flex-row items-center gap-2">
-								<Link
-									href="/projects?create=1"
+								<button
+									type="button"
+									onClick={() => setShowCreate(true)}
 									className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
 								>
 									<span className="material-symbols-outlined text-base">add</span>
 									Create Project
-								</Link>
+								</button>
 								<Link
 									href="/projects"
 									className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
@@ -602,6 +610,8 @@ export default function DashboardPage() {
 					</div>
 				) : null}
 			</div>
+
+			<CreateProjectModal open={showCreate} onClose={() => setShowCreate(false)} />
 		</div>
 	);
 }
@@ -642,13 +652,17 @@ function formatRatio(value: number | null | undefined) {
 	return value.toFixed(2);
 }
 
-function formatRelativeTime(iso: string) {
+function formatRelativeTime(
+	iso: string,
+	options?: { justNowLabel?: string; justNowThresholdSeconds?: number }
+) {
 	const stamp = Date.parse(iso);
 	if (!Number.isFinite(stamp)) return "—";
 
 	const diff = Date.now() - stamp;
 	const sec = Math.round(diff / 1000);
-	if (sec < 60) return `${sec}s ago`;
+	const justNowThreshold = options?.justNowThresholdSeconds ?? 60;
+	if (sec <= justNowThreshold) return options?.justNowLabel ?? "Just now";
 	const min = Math.round(sec / 60);
 	if (min < 60) return `${min}m ago`;
 	const h = Math.round(min / 60);

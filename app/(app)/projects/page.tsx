@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 type Project = {
 	id: string;
 	name: string;
@@ -51,26 +52,11 @@ export default function ProjectsPage() {
 	const [ratiosById, setRatiosById] = useState<Record<string, number | null>>({});
 	const [positionsById, setPositionsById] = useState<Record<string, number>>({});
 	const [isLoading, setIsLoading] = useState(false);
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 	const [listError, setListError] = useState<string | null>(null);
-	const [name, setName] = useState("");
-	const [baseCurrency, setBaseCurrency] = useState("EUR");
-	const [riskProfile, setRiskProfile] = useState<"" | "conservative" | "balanced" | "aggressive">("");
 	const [search, setSearch] = useState("");
 	const [currencyFilter, setCurrencyFilter] = useState("all");
 	const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
 	const [showCreate, setShowCreate] = useState(false);
-	const [description, setDescription] = useState("");
-	const [underlyingSymbol, setUnderlyingSymbol] = useState("");
-	const [color, setColor] = useState("#2563eb");
-	const [createMode, setCreateMode] = useState<"manual" | "ticker">("ticker");
-	const [tickerSymbol, setTickerSymbol] = useState("");
-
-	const canCreate = useMemo(() => {
-		if (createMode === "ticker") return Boolean(tickerSymbol.trim());
-		return Boolean(name.trim());
-	}, [createMode, name, tickerSymbol]);
 
 	async function loadProjects() {
 		setIsLoading(true);
@@ -120,67 +106,6 @@ export default function ProjectsPage() {
 		}
 	}
 
-	async function handleCreateProject() {
-		if (!canCreate) return;
-		setLoading(true);
-		setError(null);
-
-		try {
-			const response =
-				createMode === "ticker"
-					? await fetch("/api/projects/from-ticker", {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							symbol: tickerSymbol.trim(),
-							color: color.trim() || undefined,
-						}),
-					})
-					: await fetch("/api/projects", {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							name: name.trim(),
-							baseCurrency: baseCurrency.trim(),
-							riskProfile: riskProfile || undefined,
-							description: description.trim() || undefined,
-							underlyingSymbol: underlyingSymbol.trim() || undefined,
-							color: color.trim() || undefined,
-						}),
-					});
-
-			const payload = (await response.json().catch(() => null)) as
-				| { error?: string }
-				| { project?: Project }
-				| null;
-
-			if (!response.ok) {
-				const errorMessage =
-					payload && "error" in payload ? payload.error ?? "Unable to create project" : "Unable to create project";
-				throw new Error(errorMessage);
-			}
-
-			const createdProject = payload && "project" in payload ? payload.project : null;
-			setName("");
-			setRiskProfile("");
-			setDescription("");
-			setUnderlyingSymbol("");
-			setTickerSymbol("");
-			setColor("#2563eb");
-			setCreateMode("manual");
-			setShowCreate(false);
-			if (createdProject?.id) {
-				router.push(`/projects/${createdProject.id}`);
-			} else {
-				await loadProjects();
-			}
-		} catch (err) {
-			const message = err instanceof Error ? err.message : "Unable to create project";
-			setError(message);
-		} finally {
-			setLoading(false);
-		}
-	}
 
 	useEffect(() => {
 		void loadProjects();
@@ -631,205 +556,11 @@ export default function ProjectsPage() {
 				</div>
 			</div>
 
-			<div
-				className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${showCreate ? "" : "hidden"
-					}`}
-				onClick={() => setShowCreate(false)}
+			<CreateProjectModal
+				open={showCreate}
+				onClose={() => setShowCreate(false)}
+				onCreatedFallback={loadProjects}
 			/>
-			<div
-				className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${showCreate ? "" : "pointer-events-none"
-					}`}
-				onClick={() => setShowCreate(false)}
-				aria-hidden={!showCreate}
-			>
-				<div
-					className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out flex flex-col ${showCreate ? "scale-100 opacity-100" : "scale-95 opacity-0"
-						}`}
-					onClick={(event) => event.stopPropagation()}
-				>
-					<div className="p-6 border-b border-border-light flex items-center justify-between">
-						<div>
-							<h2 className="text-xl font-bold">Create new project</h2>
-							<p className="text-xs text-slate-500">Configure your portfolio tracking</p>
-						</div>
-						<button
-							type="button"
-							onClick={() => setShowCreate(false)}
-							className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-						>
-							<span className="material-symbols-outlined">close</span>
-						</button>
-					</div>
-					<div className="flex-1 p-6 overflow-y-auto space-y-6">
-						<div className="flex items-center gap-2">
-							<button
-								type="button"
-								onClick={() => setCreateMode("manual")}
-								className={`rounded-full border px-3 py-1 text-xs font-semibold ${createMode === "manual"
-										? "border-slate-900 bg-slate-900 text-white"
-										: "border-slate-200 bg-white text-slate-600"
-									}`}
-							>
-								Manual
-							</button>
-							<button
-								type="button"
-								onClick={() => setCreateMode("ticker")}
-								className={`rounded-full border px-3 py-1 text-xs font-semibold ${createMode === "ticker"
-										? "border-slate-900 bg-slate-900 text-white"
-										: "border-slate-200 bg-white text-slate-600"
-									}`}
-							>
-								From ticker
-							</button>
-						</div>
-
-						{createMode === "ticker" ? (
-							<>
-								<div className="space-y-2">
-									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-										Ticker
-									</label>
-									<input
-										value={tickerSymbol}
-										onChange={(event) => setTickerSymbol(event.target.value)}
-										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-										placeholder="e.g. NASDAQ:COIN or COIN"
-									/>
-								</div>
-								<div className="p-4 bg-slate-50 border border-border-light rounded-lg">
-									<div className="flex gap-3">
-										<span className="material-symbols-outlined text-slate-600">info</span>
-										<p className="text-xs text-slate-600 leading-relaxed">
-											The project is generated automatically from Massive API data. Name,
-											description, and currency are taken over.
-										</p>
-									</div>
-								</div>
-							</>
-						) : (
-							<>
-								<div className="space-y-2">
-									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-										Project name
-									</label>
-									<input
-										value={name}
-										onChange={(event) => setName(event.target.value)}
-										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-										placeholder="e.g. My first project"
-									/>
-								</div>
-								<div className="grid grid-cols-2 gap-4">
-									<div className="space-y-2">
-										<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-											Base currency
-										</label>
-										<input
-											value={baseCurrency}
-											onChange={(event) => setBaseCurrency(event.target.value)}
-											className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
-											placeholder="EUR"
-										/>
-									</div>
-									<div className="space-y-2">
-										<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-											Risk profile
-										</label>
-										<select
-											value={riskProfile}
-											onChange={(event) =>
-												setRiskProfile(
-													event.target.value as "" | "conservative" | "balanced" | "aggressive"
-												)
-											}
-											className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-										>
-											<option value="">Custom</option>
-											<option value="conservative">Conservative</option>
-											<option value="balanced">Balanced</option>
-											<option value="aggressive">Aggressive</option>
-										</select>
-									</div>
-								</div>
-								<div className="grid grid-cols-[auto,1fr] gap-3 items-center">
-									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-										Project color
-									</label>
-									<div className="flex items-center gap-3">
-										<input
-											type="color"
-											value={color}
-											onChange={(event) => setColor(event.target.value)}
-											className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
-										/>
-										<input
-											value={color}
-											onChange={(event) => setColor(event.target.value)}
-											className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
-											placeholder="#2563eb"
-										/>
-									</div>
-								</div>
-								<div className="space-y-2">
-									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-										Underlying Asset (Ticker)
-									</label>
-									<input
-										value={underlyingSymbol}
-										onChange={(event) => setUnderlyingSymbol(event.target.value)}
-										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-										placeholder="e.g. NASDAQ:COIN"
-									/>
-								</div>
-								<div className="space-y-2">
-									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-										Description (optional)
-									</label>
-									<textarea
-										value={description}
-										onChange={(event) => setDescription(event.target.value)}
-										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-										rows={4}
-										placeholder="Goals and strategy for this project..."
-									/>
-								</div>
-								<div className="p-4 bg-slate-50 border border-border-light rounded-lg">
-									<div className="flex gap-3">
-										<span className="material-symbols-outlined text-slate-600">info</span>
-										<p className="text-xs text-slate-600 leading-relaxed">
-											After creating the project, you can add ISINs or tickers to track positions
-											and start automated analysis.
-										</p>
-									</div>
-								</div>
-							</>
-						)}
-						{error ? (
-							<div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-								{error}
-							</div>
-						) : null}
-					</div>
-					<div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
-						<button
-							type="button"
-							onClick={() => setShowCreate(false)}
-							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
-						>
-							Cancel
-						</button>
-						<button
-							type="button"
-							onClick={handleCreateProject}
-							disabled={!canCreate || loading}
-							className="flex-1 px-5 py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
-						>
-							{loading ? "Creating..." : "Create project"}
-						</button>
-					</div>
-				</div>
-			</div>
 
 		</div>
 	);

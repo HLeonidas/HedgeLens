@@ -639,9 +639,9 @@ export default function SettingsPage() {
 													<td className="px-4 py-3 text-sm text-slate-600 font-medium">
 														{new Date(user.created_at).toLocaleDateString()}
 													</td>
-													<td className="px-4 py-3 text-right relative overflow-visible">
+													<td className="px-4 py-3 text-right align-middle relative overflow-visible">
 														<Menu as="div" className="relative inline-flex items-center">
-															<Menu.Button className="p-1.5 rounded-lg border border-border-light text-slate-700 hover:bg-slate-50 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">
+															<Menu.Button className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-border-light text-slate-700 hover:bg-slate-50 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20">
 																<span className="material-symbols-outlined text-lg">
 																	more_vert
 																</span>
