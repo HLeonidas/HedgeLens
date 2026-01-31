@@ -12,6 +12,7 @@ type UserRow = {
   provider: string | null;
   provider_account_id: string | null;
   active: boolean;
+  role: "admin" | "enduser";
   created_at: string;
   updated_at: string;
 };
@@ -42,6 +43,13 @@ export default function SettingsPage() {
   const [fxError, setFxError] = useState<string | null>(null);
   const [manualRate, setManualRate] = useState<number | "">("");
   const [showManualFxModal, setShowManualFxModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<"admin" | "enduser">("enduser");
+  const [editActive, setEditActive] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -96,11 +104,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial =
-      stored === "dark" || stored === "light" ? stored : prefersDark ? "dark" : "light";
+    const initial = stored === "dark" || stored === "light" ? stored : "light";
     setTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
+    if (!stored) {
+      localStorage.setItem("theme", initial);
+    }
   }, []);
 
   useEffect(() => {
@@ -137,6 +146,44 @@ export default function SettingsPage() {
     setTheme(nextTheme);
     localStorage.setItem("theme", nextTheme);
     document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }
+
+  function openEditUserModal(user: UserRow) {
+    setEditUser(user);
+    setEditName(user.name ?? "");
+    setEditRole(user.role ?? "enduser");
+    setEditActive(user.active);
+    setEditError(null);
+    setShowEditUserModal(true);
+  }
+
+  async function handleEditUserSave() {
+    if (!editUser) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const response = await fetch(`/api/users/${editUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim() ? editName.trim() : null,
+          role: editRole,
+          active: editActive,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { user?: UserRow; error?: string }
+        | null;
+      if (!response.ok || !payload?.user) {
+        throw new Error(payload?.error ?? "Failed to update user");
+      }
+      setUsers((prev) => prev.map((user) => (user.id === payload.user?.id ? payload.user : user)));
+      setShowEditUserModal(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to update user");
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function handleRefreshFx() {
@@ -371,6 +418,7 @@ export default function SettingsPage() {
                   <th className="px-4 py-3">User</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Provider</th>
+                  <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Created Date</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -379,19 +427,19 @@ export default function SettingsPage() {
               <tbody className="divide-y divide-border-light">
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-4 text-slate-500" colSpan={6}>
+                    <td className="px-4 py-4 text-slate-500" colSpan={7}>
                       Loading users...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td className="px-4 py-4 text-red-600" colSpan={6}>
+                    <td className="px-4 py-4 text-red-600" colSpan={7}>
                       {error}
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-slate-500" colSpan={6}>
+                    <td className="px-4 py-4 text-slate-500" colSpan={7}>
                       No users found.
                     </td>
                   </tr>
@@ -432,6 +480,17 @@ export default function SettingsPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                            user.role === "admin"
+                              ? "bg-indigo-100 text-indigo-700"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {user.role === "admin" ? "Admin" : "Enduser"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
                             user.active
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-rose-100 text-rose-700"
@@ -459,6 +518,7 @@ export default function SettingsPage() {
                               {({ active }) => (
                                 <button
                                   type="button"
+                                  onClick={() => openEditUserModal(user)}
                                   className={[
                                     "flex w-full items-center gap-2 px-3 py-2 text-sm",
                                     active ? "bg-slate-100 text-slate-900" : "text-slate-700",
@@ -563,6 +623,108 @@ export default function SettingsPage() {
             >
               <span className="material-symbols-outlined text-[16px]">logout</span>
               Logout
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
+          showEditUserModal ? "" : "hidden"
+        }`}
+        onClick={() => setShowEditUserModal(false)}
+      />
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
+          showEditUserModal ? "" : "pointer-events-none"
+        }`}
+        onClick={() => setShowEditUserModal(false)}
+        aria-hidden={!showEditUserModal}
+      >
+        <div
+          className={`w-full max-w-lg bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${
+            showEditUserModal ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="p-6 border-b border-border-light flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Edit user</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Update name, role, or status.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowEditUserModal(false)}
+              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Name</label>
+              <input
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-border-light px-4 py-2 text-sm bg-slate-50"
+                placeholder="User name"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Role</label>
+                <select
+                  value={editRole}
+                  onChange={(event) =>
+                    setEditRole(event.target.value as "admin" | "enduser")
+                  }
+                  className="mt-2 w-full rounded-lg border border-border-light px-4 py-2 text-sm bg-slate-50"
+                >
+                  <option value="enduser">Enduser</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border-light bg-slate-50 px-4 py-2">
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-500">Status</p>
+                  <p className="text-sm font-semibold text-slate-700">
+                    {editActive ? "Active" : "Inactive"}
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={editActive}
+                    onChange={(event) => setEditActive(event.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <span className="h-7 w-12 rounded-full bg-slate-200 transition-colors peer-checked:bg-emerald-600" />
+                  <span className="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+                  <span className="absolute left-[5px] top-[5px] text-white opacity-0 transition-all peer-checked:translate-x-5 peer-checked:opacity-100">
+                    <span className="material-symbols-outlined text-[14px]">check</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            {editError ? <p className="text-xs text-rose-600">{editError}</p> : null}
+          </div>
+          <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowEditUserModal(false)}
+              className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleEditUserSave}
+              disabled={editSaving}
+              className="flex-1 px-5 py-3 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 disabled:opacity-60"
+            >
+              {editSaving ? "Saving..." : "Save changes"}
             </button>
           </div>
         </div>

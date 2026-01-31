@@ -24,6 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           token.userId = dbUser.id;
           token.active = dbUser.active;
+          token.role = dbUser.role;
         }
       }
       return token;
@@ -32,6 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user && token.sub) {
         session.user.id = (token.userId as string | undefined) ?? token.sub;
         session.user.active = (token.active as boolean | undefined) ?? true;
+        session.user.role = (token.role as "admin" | "enduser" | undefined) ?? "enduser";
       }
       return session;
     },

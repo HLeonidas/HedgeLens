@@ -13,6 +13,7 @@ type UserRecord = {
   provider: string | null;
   provider_account_id: string | null;
   active: boolean;
+  role?: "admin" | "enduser";
   created_at: string;
   updated_at: string;
 };
@@ -64,7 +65,10 @@ export async function GET(request: Request) {
   }
 
   const users = await redis.mget<UserRecord[]>(ids.map((id) => `user:${id}`));
-  let filtered = (users ?? []).filter((user): user is UserRecord => Boolean(user));
+  let filtered = (users ?? []).filter((user): user is UserRecord => Boolean(user)).map((user) => ({
+    ...user,
+    role: user.role ?? "enduser",
+  }));
 
   if (query) {
     filtered = filtered.filter((user) => matchesFilter(user, query));
