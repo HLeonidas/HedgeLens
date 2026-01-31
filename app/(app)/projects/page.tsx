@@ -12,14 +12,14 @@ type Project = {
 	riskProfile: "conservative" | "balanced" | "aggressive" | null;
 	underlyingSymbol?: string | null;
 	color?: string | null;
-  underlyingLastPrice?: number | null;
-  underlyingLastPriceUpdatedAt?: string | null;
-  underlyingLastPriceCurrency?: string | null;
-  massiveTickerInfo?: {
-    source: "massive";
-    symbol: string;
-    payload: Record<string, unknown>;
-  } | null;
+	underlyingLastPrice?: number | null;
+	underlyingLastPriceUpdatedAt?: string | null;
+	underlyingLastPriceCurrency?: string | null;
+	massiveTickerInfo?: {
+		source: "massive";
+		symbol: string;
+		payload: Record<string, unknown>;
+	} | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -37,12 +37,12 @@ const riskProfileOptions = ["all", "conservative", "balanced", "aggressive", "cu
 type RiskFilter = (typeof riskProfileOptions)[number];
 
 const projectColorPalette = [
-  { bg: "bg-blue-100", text: "text-blue-600" },
-  { bg: "bg-emerald-100", text: "text-emerald-600" },
-  { bg: "bg-amber-100", text: "text-amber-600" },
-  { bg: "bg-rose-100", text: "text-rose-600" },
-  { bg: "bg-indigo-100", text: "text-indigo-600" },
-  { bg: "bg-teal-100", text: "text-teal-600" },
+	{ bg: "bg-blue-100", text: "text-blue-600" },
+	{ bg: "bg-emerald-100", text: "text-emerald-600" },
+	{ bg: "bg-amber-100", text: "text-amber-600" },
+	{ bg: "bg-rose-100", text: "text-rose-600" },
+	{ bg: "bg-indigo-100", text: "text-indigo-600" },
+	{ bg: "bg-teal-100", text: "text-teal-600" },
 ] as const;
 
 export default function ProjectsPage() {
@@ -56,21 +56,21 @@ export default function ProjectsPage() {
 	const [listError, setListError] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [baseCurrency, setBaseCurrency] = useState("EUR");
-  const [riskProfile, setRiskProfile] = useState<"" | "conservative" | "balanced" | "aggressive">("");
-  const [search, setSearch] = useState("");
-  const [currencyFilter, setCurrencyFilter] = useState("all");
+	const [riskProfile, setRiskProfile] = useState<"" | "conservative" | "balanced" | "aggressive">("");
+	const [search, setSearch] = useState("");
+	const [currencyFilter, setCurrencyFilter] = useState("all");
 	const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
-  const [showCreate, setShowCreate] = useState(false);
-  const [description, setDescription] = useState("");
-  const [underlyingSymbol, setUnderlyingSymbol] = useState("");
-  const [color, setColor] = useState("#2563eb");
-  const [createMode, setCreateMode] = useState<"manual" | "ticker">("ticker");
-  const [tickerSymbol, setTickerSymbol] = useState("");
+	const [showCreate, setShowCreate] = useState(false);
+	const [description, setDescription] = useState("");
+	const [underlyingSymbol, setUnderlyingSymbol] = useState("");
+	const [color, setColor] = useState("#2563eb");
+	const [createMode, setCreateMode] = useState<"manual" | "ticker">("ticker");
+	const [tickerSymbol, setTickerSymbol] = useState("");
 
 	const canCreate = useMemo(() => {
-    if (createMode === "ticker") return Boolean(tickerSymbol.trim());
-    return Boolean(name.trim());
-  }, [createMode, name, tickerSymbol]);
+		if (createMode === "ticker") return Boolean(tickerSymbol.trim());
+		return Boolean(name.trim());
+	}, [createMode, name, tickerSymbol]);
 
 	async function loadProjects() {
 		setIsLoading(true);
@@ -120,34 +120,34 @@ export default function ProjectsPage() {
 		}
 	}
 
-  async function handleCreateProject() {
-    if (!canCreate) return;
-    setLoading(true);
-    setError(null);
+	async function handleCreateProject() {
+		if (!canCreate) return;
+		setLoading(true);
+		setError(null);
 
-    try {
-      const response =
-        createMode === "ticker"
-          ? await fetch("/api/projects/from-ticker", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                symbol: tickerSymbol.trim(),
-                color: color.trim() || undefined,
-              }),
-            })
-          : await fetch("/api/projects", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name: name.trim(),
-                baseCurrency: baseCurrency.trim(),
-                riskProfile: riskProfile || undefined,
-                description: description.trim() || undefined,
-                underlyingSymbol: underlyingSymbol.trim() || undefined,
-                color: color.trim() || undefined,
-              }),
-            });
+		try {
+			const response =
+				createMode === "ticker"
+					? await fetch("/api/projects/from-ticker", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							symbol: tickerSymbol.trim(),
+							color: color.trim() || undefined,
+						}),
+					})
+					: await fetch("/api/projects", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							name: name.trim(),
+							baseCurrency: baseCurrency.trim(),
+							riskProfile: riskProfile || undefined,
+							description: description.trim() || undefined,
+							underlyingSymbol: underlyingSymbol.trim() || undefined,
+							color: color.trim() || undefined,
+						}),
+					});
 
 			const payload = (await response.json().catch(() => null)) as
 				| { error?: string }
@@ -160,20 +160,20 @@ export default function ProjectsPage() {
 				throw new Error(errorMessage);
 			}
 
-      const createdProject = payload && "project" in payload ? payload.project : null;
-      setName("");
-      setRiskProfile("");
-      setDescription("");
-      setUnderlyingSymbol("");
-      setTickerSymbol("");
-      setColor("#2563eb");
-      setCreateMode("manual");
-      setShowCreate(false);
-      if (createdProject?.id) {
-        router.push(`/projects/${createdProject.id}`);
-      } else {
-        await loadProjects();
-      }
+			const createdProject = payload && "project" in payload ? payload.project : null;
+			setName("");
+			setRiskProfile("");
+			setDescription("");
+			setUnderlyingSymbol("");
+			setTickerSymbol("");
+			setColor("#2563eb");
+			setCreateMode("manual");
+			setShowCreate(false);
+			if (createdProject?.id) {
+				router.push(`/projects/${createdProject.id}`);
+			} else {
+				await loadProjects();
+			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Unable to create project";
 			setError(message);
@@ -214,86 +214,86 @@ export default function ProjectsPage() {
 		return { label: "Aggressive", classes: "bg-rose-100 text-rose-700" };
 	}
 
-  function ratioBarColor(value: number) {
-    if (value >= 1.5) return "bg-rose-500";
-    if (value >= 1.2) return "bg-orange-500";
-    if (value >= 1.0) return "bg-amber-500";
-    if (value >= 0.8) return "bg-emerald-500";
-    return "bg-sky-500";
-  }
+	function ratioBarColor(value: number) {
+		if (value >= 1.5) return "bg-rose-500";
+		if (value >= 1.2) return "bg-orange-500";
+		if (value >= 1.0) return "bg-amber-500";
+		if (value >= 0.8) return "bg-emerald-500";
+		return "bg-sky-500";
+	}
 
-  function projectColor(projectId: string, customColor?: string | null) {
-    if (customColor) {
-      return { style: { backgroundColor: customColor }, textClass: "text-white", className: "" };
-    }
-    const index = Math.abs(
-      projectId.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0)
-    );
-    const palette = projectColorPalette[index % projectColorPalette.length];
-    return { className: `${palette.bg} ${palette.text}`, textClass: "" };
-  }
+	function projectColor(projectId: string, customColor?: string | null) {
+		if (customColor) {
+			return { style: { backgroundColor: customColor }, textClass: "text-white", className: "" };
+		}
+		const index = Math.abs(
+			projectId.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0)
+		);
+		const palette = projectColorPalette[index % projectColorPalette.length];
+		return { className: `${palette.bg} ${palette.text}`, textClass: "" };
+	}
 
-  function riskIcon(profile: Project["riskProfile"]) {
-    if (profile === "conservative") {
-      return {
-        icon: "shield",
-      };
-    }
-    if (profile === "balanced") {
-      return {
-        icon: "balance",
-      };
-    }
-    if (profile === "aggressive") {
-      return {
-        icon: "show_chart",
-      };
-    }
-    return {
-      icon: "insights",
-    };
-  }
+	function riskIcon(profile: Project["riskProfile"]) {
+		if (profile === "conservative") {
+			return {
+				icon: "shield",
+			};
+		}
+		if (profile === "balanced") {
+			return {
+				icon: "balance",
+			};
+		}
+		if (profile === "aggressive") {
+			return {
+				icon: "show_chart",
+			};
+		}
+		return {
+			icon: "insights",
+		};
+	}
 
-  function underlyingTag(symbol?: string | null) {
-    if (!symbol) return "—";
-    const trimmed = symbol.replace(/\s+/g, "");
-    return trimmed.slice(-4).toUpperCase();
-  }
+	function underlyingTag(symbol?: string | null) {
+		if (!symbol) return "—";
+		const trimmed = symbol.replace(/\s+/g, "");
+		return trimmed.slice(-4).toUpperCase();
+	}
 
-  function getMassiveIcon(payload?: Record<string, unknown> | null) {
-    if (!payload) return null;
-    const results =
-      (payload as Record<string, unknown>).results &&
-      typeof (payload as Record<string, unknown>).results === "object"
-        ? ((payload as Record<string, unknown>).results as Record<string, unknown>)
-        : payload;
-    const branding = (results as { branding?: Record<string, unknown> }).branding;
-    const iconUrl = branding?.icon_url || branding?.logo_url;
-    if (typeof iconUrl === "string" && iconUrl.trim()) return iconUrl;
-    if (typeof (results as any).icon_url === "string") return (results as any).icon_url;
-    if (typeof (results as any).logo_url === "string") return (results as any).logo_url;
-    return null;
-  }
+	function getMassiveIcon(payload?: Record<string, unknown> | null) {
+		if (!payload) return null;
+		const results =
+			(payload as Record<string, unknown>).results &&
+				typeof (payload as Record<string, unknown>).results === "object"
+				? ((payload as Record<string, unknown>).results as Record<string, unknown>)
+				: payload;
+		const branding = (results as { branding?: Record<string, unknown> }).branding;
+		const iconUrl = branding?.icon_url || branding?.logo_url;
+		if (typeof iconUrl === "string" && iconUrl.trim()) return iconUrl;
+		if (typeof (results as any).icon_url === "string") return (results as any).icon_url;
+		if (typeof (results as any).logo_url === "string") return (results as any).logo_url;
+		return null;
+	}
 
-  function withMassiveProxy(url: string) {
-    try {
-      return `/api/massive/logo?url=${encodeURIComponent(url)}`;
-    } catch {
-      return url;
-    }
-  }
+	function withMassiveProxy(url: string) {
+		try {
+			return `/api/massive/logo?url=${encodeURIComponent(url)}`;
+		} catch {
+			return url;
+		}
+	}
 
-  function formatPrice(value?: number | null) {
-    if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-    return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
-  }
+	function formatPrice(value?: number | null) {
+		if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+		return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
+	}
 
-  function formatDate(value?: string | null) {
-    if (!value) return "—";
-    const parsed = Date.parse(value);
-    if (!Number.isFinite(parsed)) return "—";
-    return new Date(parsed).toLocaleDateString();
-  }
+	function formatDate(value?: string | null) {
+		if (!value) return "—";
+		const parsed = Date.parse(value);
+		if (!Number.isFinite(parsed)) return "—";
+		return new Date(parsed).toLocaleDateString();
+	}
 
 	function handleRowClick(projectId: string) {
 		router.push(`/projects/${projectId}`);
@@ -349,7 +349,7 @@ export default function ProjectsPage() {
 								<button
 									type="button"
 									onClick={() => setShowCreate((prev) => !prev)}
-									className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+									className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
 								>
 									<span className="material-symbols-outlined text-base">
 										{showCreate ? "close" : "add"}
@@ -361,482 +361,476 @@ export default function ProjectsPage() {
 					</div>
 				</div>
 
-						<div className="rounded-2xl border border-border-light bg-white shadow-sm">
-				{listError ? (
-					<div className="rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-rose-700">
-						{listError}
-					</div>
-				) : isLoading ? (
-					<div className="rounded-xl border border-border-light overflow-hidden bg-white">
-						<div className="overflow-x-auto overflow-y-hidden">
-							<table className="w-full min-w-[980px] text-left border-collapse">
-								<thead>
-									<tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
-										<th className="px-6 py-4">Project</th>
-										<th className="px-6 py-4">Last Price</th>
-										<th className="px-6 py-4">Risk Profile</th>
-										<th className="px-6 py-4">Put/Call Ratio</th>
-										<th className="px-6 py-4">Positions</th>
-										<th className="px-6 py-4 text-right">Info</th>
-									</tr>
-								</thead>
-								<tbody className="divide-y divide-border-light">
-									{Array.from({ length: 5 }).map((_, index) => (
-										<tr key={index} className="animate-pulse">
-											<td className="px-6 py-4">
-												<div className="flex items-center gap-3">
-													<div className="h-8 w-8 rounded bg-slate-200" />
-													<div className="space-y-2">
-														<div className="h-3 w-40 rounded bg-slate-200" />
-														<div className="h-2 w-20 rounded bg-slate-100" />
-													</div>
-												</div>
-											</td>
-											<td className="px-6 py-4">
-												<div className="h-3 w-20 rounded bg-slate-200" />
-												<div className="mt-2 h-2 w-16 rounded bg-slate-100" />
-											</td>
-											<td className="px-6 py-4">
-												<div className="h-6 w-24 rounded-full bg-slate-200" />
-											</td>
-											<td className="px-6 py-4">
-												<div className="h-3 w-16 rounded bg-slate-200" />
-												<div className="mt-2 h-2 w-20 rounded bg-slate-100" />
-											</td>
-											<td className="px-6 py-4">
-												<div className="h-3 w-10 rounded bg-slate-200" />
-											</td>
-											<td className="px-6 py-4 text-right">
-												<div className="inline-block h-4 w-4 rounded-full bg-slate-200" />
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
+				<div className="rounded-2xl border border-border-light bg-white shadow-sm">
+					{listError ? (
+						<div className="rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-6 text-sm text-rose-700">
+							{listError}
 						</div>
-					</div>
-				) : projects.length === 0 ? (
-					<div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-10 text-slate-600">
-						<div className="mx-auto flex max-w-xl flex-col items-center text-center">
-							<div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 shadow-inner">
-								<span className="material-symbols-outlined text-[28px]">workspaces</span>
+					) : isLoading ? (
+						<div className="rounded-xl border border-border-light overflow-hidden bg-white">
+							<div className="overflow-x-auto overflow-y-hidden">
+								<table className="w-full min-w-[980px] text-left border-collapse">
+									<thead>
+										<tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
+											<th className="px-6 py-4">Project</th>
+											<th className="px-6 py-4">Last Price</th>
+											<th className="px-6 py-4">Risk Profile</th>
+											<th className="px-6 py-4">Put/Call Ratio</th>
+											<th className="px-6 py-4">Positions</th>
+											<th className="px-6 py-4 text-right">Info</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-border-light">
+										{Array.from({ length: 5 }).map((_, index) => (
+											<tr key={index} className="animate-pulse">
+												<td className="px-6 py-4">
+													<div className="flex items-center gap-3">
+														<div className="h-8 w-8 rounded bg-slate-200" />
+														<div className="space-y-2">
+															<div className="h-3 w-40 rounded bg-slate-200" />
+															<div className="h-2 w-20 rounded bg-slate-100" />
+														</div>
+													</div>
+												</td>
+												<td className="px-6 py-4">
+													<div className="h-3 w-20 rounded bg-slate-200" />
+													<div className="mt-2 h-2 w-16 rounded bg-slate-100" />
+												</td>
+												<td className="px-6 py-4">
+													<div className="h-6 w-24 rounded-full bg-slate-200" />
+												</td>
+												<td className="px-6 py-4">
+													<div className="h-3 w-16 rounded bg-slate-200" />
+													<div className="mt-2 h-2 w-20 rounded bg-slate-100" />
+												</td>
+												<td className="px-6 py-4">
+													<div className="h-3 w-10 rounded bg-slate-200" />
+												</td>
+												<td className="px-6 py-4 text-right">
+													<div className="inline-block h-4 w-4 rounded-full bg-slate-200" />
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
 							</div>
-							<h3 className="mt-4 text-lg font-semibold text-slate-900">
-								Create your first project
-							</h3>
-							<p className="mt-2 text-sm text-slate-500">
-								A project is a strategy workspace where you group positions, track ratios,
-								and review analytics. Create one to start organizing your trades.
-							</p>
-							<p className="mt-3 text-xs text-slate-400">
-								Tip: Use one project per underlying or strategy.
-							</p>
+						</div>
+					) : projects.length === 0 ? (
+						<div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-10 text-slate-600">
+							<div className="mx-auto flex max-w-xl flex-col items-center text-center">
+								<div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 shadow-inner">
+									<span className="material-symbols-outlined text-[28px]">workspaces</span>
+								</div>
+								<h3 className="mt-4 text-lg font-semibold text-slate-900">
+									Create your first project
+								</h3>
+								<p className="mt-2 text-sm text-slate-500">
+									A project is a strategy workspace where you group positions, track ratios,
+									and review analytics. Create one to start organizing your trades.
+								</p>
+								<p className="mt-3 text-xs text-slate-400">
+									Tip: Use one project per underlying or strategy.
+								</p>
+								<button
+									type="button"
+									onClick={() => setShowCreate(true)}
+									className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+								>
+									<span className="material-symbols-outlined text-base">add</span>
+									Create Project
+								</button>
+							</div>
+						</div>
+					) : filteredProjects.length === 0 ? (
+						<div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+							No projects match your filters.
 							<button
 								type="button"
-								onClick={() => setShowCreate(true)}
-								className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+								onClick={() => {
+									setSearch("");
+									setCurrencyFilter("all");
+									setRiskFilter("all");
+								}}
+								className="ml-2 text-slate-900 font-semibold underline"
 							>
-								<span className="material-symbols-outlined text-base">add</span>
-								Create Project
+								Reset filters
 							</button>
 						</div>
-					</div>
-				) : filteredProjects.length === 0 ? (
-					<div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-						No projects match your filters.
-						<button
-							type="button"
-							onClick={() => {
-								setSearch("");
-								setCurrencyFilter("all");
-								setRiskFilter("all");
-							}}
-							className="ml-2 text-slate-900 font-semibold underline"
-						>
-							Reset filters
-						</button>
-					</div>
-        ) : (
-          <div className="rounded-xl border border-border-light overflow-hidden bg-white">
-            <div className="overflow-x-auto overflow-y-hidden">
-              <table className="w-full min-w-[980px] text-left border-collapse">
-                <thead>
-                  <tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
-                    <th className="px-6 py-4">Project</th>
-                    <th className="px-6 py-4">Last Price</th>
-                    <th className="px-6 py-4">Risk Profile</th>
-                    <th className="px-6 py-4">Put/Call Ratio</th>
-                    <th className="px-6 py-4">Positions</th>
-                    <th className="px-6 py-4 text-right">
-                      <span className="inline-flex items-center gap-2 text-slate-400">
-                        Info
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-light">
-                  {filteredProjects.map((project, index) => {
-                    const riskBadge = getRiskBadge(project.riskProfile);
-                    const ratio = ratiosById[project.id] ?? null;
-                    const positions = positionsById[project.id] ?? 0;
-                    const iconMeta = riskIcon(project.riskProfile);
-                    const colorMeta = projectColor(project.id, project.color);
-                    const isLastRow = index === filteredProjects.length - 1;
-                    return (
-                      <tr
-                        key={project.id}
-                        className="hover:bg-slate-50 transition-colors group cursor-pointer"
-                        onClick={() => handleRowClick(project.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            handleRowClick(project.id);
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {(() => {
-                              const logoUrl = getMassiveIcon(project.massiveTickerInfo?.payload ?? null);
-                              const baseClasses = "w-8 h-8 rounded flex items-center justify-center overflow-hidden";
-                              const className = logoUrl
-                                ? baseClasses
-                                : `${baseClasses} ${colorMeta.className ?? ""} ${colorMeta.textClass ?? ""}`;
-                              const style = logoUrl ? undefined : colorMeta.style;
-                              return (
-                                <div className={className} style={style}>
-                                  {logoUrl ? (
-                                    <img
-                                      src={withMassiveProxy(logoUrl)}
-                                      alt={project.name}
-                                      className="h-full w-full object-contain"
-                                    />
-                                  ) : (
-                                    <span className="text-[10px] font-bold tracking-widest">
-                                      {underlyingTag(project.underlyingSymbol)}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-slate-900">
-                                {project.name}
-                                {project.underlyingSymbol ? (
-                                  <span className="text-xs text-slate-500">
-                                    {" "}
-                                    · {project.underlyingSymbol.replace(/\s+/g, "").toUpperCase()}
-                                  </span>
-                                ) : null}
-                              </span>
-                              <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
-                                ID: {project.id.slice(0, 6).toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-slate-700">
-                              {formatPrice(project.underlyingLastPrice)}{" "}
-                              <span className="text-xs text-slate-400 uppercase">
-                                {project.baseCurrency?.toUpperCase()}
-                              </span>
-                            </span>
-                            <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
-                              {formatDate(project.underlyingLastPriceUpdatedAt)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${
-                              riskBadge.label === "Conservative"
-                                ? "bg-emerald-100 text-emerald-600 border-emerald-200"
-                                : riskBadge.label === "Balanced" || riskBadge.label === "Custom"
-                                  ? "bg-yellow-100 text-yellow-600 border-yellow-200"
-                                  : "bg-red-100 text-red-600 border-red-200"
-                            }`}
-                          >
-                            <span className="inline-flex items-center gap-1 leading-none">
-                              <span className="material-symbols-outlined text-[12px]">
-                                {iconMeta.icon}
-                              </span>
-                              {riskBadge.label}
-                            </span>
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-slate-700">
-                              {ratio === null ? "—" : ratio.toFixed(2)}
-                            </span>
-                            <div className="flex-1 h-1 w-16 bg-slate-100 rounded-full overflow-hidden">
-                              {ratio === null ? null : (
-                                <div
-                                  className={`h-full ${ratioBarColor(ratio)}`}
-                                  style={{ width: `${Math.min(100, ratio * 50)}%` }}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 font-medium text-sm text-slate-700">
-                          {positions}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Popover className="relative inline-flex group">
-                            <Popover.Button className="inline-flex items-center justify-end text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 rounded">
-                              <span className="material-symbols-outlined text-base">info</span>
-                            </Popover.Button>
-                            <Popover.Panel
-                              static
-                              className="pointer-events-none absolute right-full top-1/2 mr-2 w-max -translate-y-1/2 rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                            >
-                              {new Date(project.updatedAt).toLocaleString()}
-                            </Popover.Panel>
-                          </Popover>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-6 py-4 bg-slate-50 border-t border-border-light flex items-center justify-between text-xs font-medium text-slate-500">
-              <span>
-                Zeige {filteredProjects.length > 0 ? 1 : 0}-{filteredProjects.length} von{" "}
-                {projects.length} projects
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
-                  disabled
-                >
-                  Previous
-                </button>
-                  <button
-                    type="button"
-                    className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
-                    disabled
-                  >
-                    Next
-                  </button>
-              </div>
-            </div>
-          </div>
-        )}
+					) : (
+						<div className="rounded-xl border border-border-light overflow-hidden bg-white">
+							<div className="overflow-x-auto overflow-y-hidden">
+								<table className="w-full min-w-[980px] text-left border-collapse">
+									<thead>
+										<tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
+											<th className="px-6 py-4">Project</th>
+											<th className="px-6 py-4">Last Price</th>
+											<th className="px-6 py-4">Risk Profile</th>
+											<th className="px-6 py-4">Put/Call Ratio</th>
+											<th className="px-6 py-4">Positions</th>
+											<th className="px-6 py-4 text-right">
+												<span className="inline-flex items-center gap-2 text-slate-400">
+													Info
+												</span>
+											</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-border-light">
+										{filteredProjects.map((project, index) => {
+											const riskBadge = getRiskBadge(project.riskProfile);
+											const ratio = ratiosById[project.id] ?? null;
+											const positions = positionsById[project.id] ?? 0;
+											const iconMeta = riskIcon(project.riskProfile);
+											const colorMeta = projectColor(project.id, project.color);
+											const isLastRow = index === filteredProjects.length - 1;
+											return (
+												<tr
+													key={project.id}
+													className="hover:bg-slate-50 transition-colors group cursor-pointer"
+													onClick={() => handleRowClick(project.id)}
+													onKeyDown={(event) => {
+														if (event.key === "Enter" || event.key === " ") {
+															event.preventDefault();
+															handleRowClick(project.id);
+														}
+													}}
+													role="button"
+													tabIndex={0}
+												>
+													<td className="px-6 py-4">
+														<div className="flex items-center gap-3">
+															{(() => {
+																const logoUrl = getMassiveIcon(project.massiveTickerInfo?.payload ?? null);
+																const baseClasses = "w-8 h-8 rounded flex items-center justify-center overflow-hidden";
+																const className = logoUrl
+																	? baseClasses
+																	: `${baseClasses} ${colorMeta.className ?? ""} ${colorMeta.textClass ?? ""}`;
+																const style = logoUrl ? undefined : colorMeta.style;
+																return (
+																	<div className={className} style={style}>
+																		{logoUrl ? (
+																			<img
+																				src={withMassiveProxy(logoUrl)}
+																				alt={project.name}
+																				className="h-full w-full object-contain"
+																			/>
+																		) : (
+																			<span className="text-[10px] font-bold tracking-widest">
+																				{underlyingTag(project.underlyingSymbol)}
+																			</span>
+																		)}
+																	</div>
+																);
+															})()}
+															<div className="flex flex-col">
+																<span className="text-sm font-semibold text-slate-900">
+																	{project.name}
+																	{project.underlyingSymbol ? (
+																		<span className="text-xs text-slate-500">
+																			{" "}
+																			· {project.underlyingSymbol.replace(/\s+/g, "").toUpperCase()}
+																		</span>
+																	) : null}
+																</span>
+																<span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+																	ID: {project.id.slice(0, 6).toUpperCase()}
+																</span>
+															</div>
+														</div>
+													</td>
+													<td className="px-6 py-4">
+														<div className="flex flex-col">
+															<span className="text-sm font-semibold text-slate-700">
+																{formatPrice(project.underlyingLastPrice)}{" "}
+																<span className="text-xs text-slate-400 uppercase">
+																	{project.baseCurrency?.toUpperCase()}
+																</span>
+															</span>
+															<span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+																{formatDate(project.underlyingLastPriceUpdatedAt)}
+															</span>
+														</div>
+													</td>
+													<td className="px-6 py-4">
+														<span
+															className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${riskBadge.label === "Conservative"
+																	? "bg-emerald-100 text-emerald-600 border-emerald-200"
+																	: riskBadge.label === "Balanced" || riskBadge.label === "Custom"
+																		? "bg-yellow-100 text-yellow-600 border-yellow-200"
+																		: "bg-red-100 text-red-600 border-red-200"
+																}`}
+														>
+															<span className="inline-flex items-center gap-1 leading-none">
+																<span className="material-symbols-outlined text-[12px]">
+																	{iconMeta.icon}
+																</span>
+																{riskBadge.label}
+															</span>
+														</span>
+													</td>
+													<td className="px-6 py-4">
+														<div className="flex items-center gap-3">
+															<span className="text-sm font-semibold text-slate-700">
+																{ratio === null ? "—" : ratio.toFixed(2)}
+															</span>
+															<div className="flex-1 h-1 w-16 bg-slate-100 rounded-full overflow-hidden">
+																{ratio === null ? null : (
+																	<div
+																		className={`h-full ${ratioBarColor(ratio)}`}
+																		style={{ width: `${Math.min(100, ratio * 50)}%` }}
+																	/>
+																)}
+															</div>
+														</div>
+													</td>
+													<td className="px-6 py-4 font-medium text-sm text-slate-700">
+														{positions}
+													</td>
+													<td className="px-6 py-4 text-right">
+														<Popover className="relative inline-flex group">
+															<Popover.Button className="inline-flex items-center justify-end text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 rounded">
+																<span className="material-symbols-outlined text-base">info</span>
+															</Popover.Button>
+															<Popover.Panel
+																static
+																className="pointer-events-none absolute right-full top-1/2 mr-2 w-max -translate-y-1/2 rounded-lg border border-border-light bg-white px-2.5 py-1 text-[11px] text-slate-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+															>
+																{new Date(project.updatedAt).toLocaleString()}
+															</Popover.Panel>
+														</Popover>
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</div>
+							<div className="px-6 py-4 bg-slate-50 border-t border-border-light flex items-center justify-between text-xs font-medium text-slate-500">
+								<span>
+									Zeige {filteredProjects.length > 0 ? 1 : 0}-{filteredProjects.length} von{" "}
+									{projects.length} projects
+								</span>
+								<div className="flex items-center gap-2">
+									<button
+										type="button"
+										className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
+										disabled
+									>
+										Previous
+									</button>
+									<button
+										type="button"
+										className="px-3 py-1 bg-white border border-border-light rounded hover:bg-slate-100 transition-colors text-slate-400"
+										disabled
+									>
+										Next
+									</button>
+								</div>
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 
-      <div
-        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${
-          showCreate ? "" : "hidden"
-        }`}
-        onClick={() => setShowCreate(false)}
-      />
-      <div
-        className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${
-          showCreate ? "" : "pointer-events-none"
-        }`}
-        onClick={() => setShowCreate(false)}
-        aria-hidden={!showCreate}
-      >
-        <div
-          className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out flex flex-col ${
-            showCreate ? "scale-100 opacity-100" : "scale-95 opacity-0"
-          }`}
-          onClick={(event) => event.stopPropagation()}
-        >
-        <div className="p-6 border-b border-border-light flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold">Create new project</h2>
-            <p className="text-xs text-slate-500">Configure your portfolio tracking</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowCreate(false)}
-            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div className="flex-1 p-6 overflow-y-auto space-y-6">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCreateMode("manual")}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                createMode === "manual"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              Manual
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreateMode("ticker")}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                createMode === "ticker"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              From ticker
-            </button>
-          </div>
+			<div
+				className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${showCreate ? "" : "hidden"
+					}`}
+				onClick={() => setShowCreate(false)}
+			/>
+			<div
+				className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${showCreate ? "" : "pointer-events-none"
+					}`}
+				onClick={() => setShowCreate(false)}
+				aria-hidden={!showCreate}
+			>
+				<div
+					className={`w-full max-w-md bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out flex flex-col ${showCreate ? "scale-100 opacity-100" : "scale-95 opacity-0"
+						}`}
+					onClick={(event) => event.stopPropagation()}
+				>
+					<div className="p-6 border-b border-border-light flex items-center justify-between">
+						<div>
+							<h2 className="text-xl font-bold">Create new project</h2>
+							<p className="text-xs text-slate-500">Configure your portfolio tracking</p>
+						</div>
+						<button
+							type="button"
+							onClick={() => setShowCreate(false)}
+							className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+						>
+							<span className="material-symbols-outlined">close</span>
+						</button>
+					</div>
+					<div className="flex-1 p-6 overflow-y-auto space-y-6">
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={() => setCreateMode("manual")}
+								className={`rounded-full border px-3 py-1 text-xs font-semibold ${createMode === "manual"
+										? "border-slate-900 bg-slate-900 text-white"
+										: "border-slate-200 bg-white text-slate-600"
+									}`}
+							>
+								Manual
+							</button>
+							<button
+								type="button"
+								onClick={() => setCreateMode("ticker")}
+								className={`rounded-full border px-3 py-1 text-xs font-semibold ${createMode === "ticker"
+										? "border-slate-900 bg-slate-900 text-white"
+										: "border-slate-200 bg-white text-slate-600"
+									}`}
+							>
+								From ticker
+							</button>
+						</div>
 
-          {createMode === "ticker" ? (
-            <>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Ticker
-                </label>
-                <input
-                  value={tickerSymbol}
-                  onChange={(event) => setTickerSymbol(event.target.value)}
-                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  placeholder="e.g. NASDAQ:COIN or COIN"
-                />
-              </div>
-              <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
-                <div className="flex gap-3">
-                  <span className="material-symbols-outlined text-slate-600">info</span>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    The project is generated automatically from Massive API data. Name,
-                    description, and currency are taken over.
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Project name
-                </label>
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  placeholder="e.g. My first project"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                    Base currency
-                  </label>
-                  <input
-                    value={baseCurrency}
-                    onChange={(event) => setBaseCurrency(event.target.value)}
-                    className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
-                    placeholder="EUR"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                    Risk profile
-                  </label>
-                  <select
-                    value={riskProfile}
-                    onChange={(event) =>
-                      setRiskProfile(
-                        event.target.value as "" | "conservative" | "balanced" | "aggressive"
-                      )
-                    }
-                    className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  >
-                    <option value="">Custom</option>
-                    <option value="conservative">Conservative</option>
-                    <option value="balanced">Balanced</option>
-                    <option value="aggressive">Aggressive</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-[auto,1fr] gap-3 items-center">
-                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Project color
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(event) => setColor(event.target.value)}
-                    className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
-                  />
-                  <input
-                    value={color}
-                    onChange={(event) => setColor(event.target.value)}
-                    className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
-                    placeholder="#2563eb"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Underlying Asset (Ticker)
-                </label>
-                <input
-                  value={underlyingSymbol}
-                  onChange={(event) => setUnderlyingSymbol(event.target.value)}
-                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  placeholder="e.g. NASDAQ:COIN"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Description (optional)
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
-                  rows={4}
-                  placeholder="Goals and strategy for this project..."
-                />
-              </div>
-              <div className="p-4 bg-slate-50 border border-border-light rounded-lg">
-                <div className="flex gap-3">
-                  <span className="material-symbols-outlined text-slate-600">info</span>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    After creating the project, you can add ISINs or tickers to track positions
-                    and start automated analysis.
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
-          {error ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-              {error}
-            </div>
-          ) : null}
-        </div>
-        <div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
-          <button
-            type="button"
-            onClick={() => setShowCreate(false)}
-            className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleCreateProject}
-            disabled={!canCreate || loading}
-            className="flex-1 px-5 py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
-          >
-            {loading ? "Creating..." : "Create project"}
-          </button>
-        </div>
-        </div>
-      </div>
+						{createMode === "ticker" ? (
+							<>
+								<div className="space-y-2">
+									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+										Ticker
+									</label>
+									<input
+										value={tickerSymbol}
+										onChange={(event) => setTickerSymbol(event.target.value)}
+										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										placeholder="e.g. NASDAQ:COIN or COIN"
+									/>
+								</div>
+								<div className="p-4 bg-slate-50 border border-border-light rounded-lg">
+									<div className="flex gap-3">
+										<span className="material-symbols-outlined text-slate-600">info</span>
+										<p className="text-xs text-slate-600 leading-relaxed">
+											The project is generated automatically from Massive API data. Name,
+											description, and currency are taken over.
+										</p>
+									</div>
+								</div>
+							</>
+						) : (
+							<>
+								<div className="space-y-2">
+									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+										Project name
+									</label>
+									<input
+										value={name}
+										onChange={(event) => setName(event.target.value)}
+										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										placeholder="e.g. My first project"
+									/>
+								</div>
+								<div className="grid grid-cols-2 gap-4">
+									<div className="space-y-2">
+										<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+											Base currency
+										</label>
+										<input
+											value={baseCurrency}
+											onChange={(event) => setBaseCurrency(event.target.value)}
+											className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 uppercase"
+											placeholder="EUR"
+										/>
+									</div>
+									<div className="space-y-2">
+										<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+											Risk profile
+										</label>
+										<select
+											value={riskProfile}
+											onChange={(event) =>
+												setRiskProfile(
+													event.target.value as "" | "conservative" | "balanced" | "aggressive"
+												)
+											}
+											className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										>
+											<option value="">Custom</option>
+											<option value="conservative">Conservative</option>
+											<option value="balanced">Balanced</option>
+											<option value="aggressive">Aggressive</option>
+										</select>
+									</div>
+								</div>
+								<div className="grid grid-cols-[auto,1fr] gap-3 items-center">
+									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+										Project color
+									</label>
+									<div className="flex items-center gap-3">
+										<input
+											type="color"
+											value={color}
+											onChange={(event) => setColor(event.target.value)}
+											className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
+										/>
+										<input
+											value={color}
+											onChange={(event) => setColor(event.target.value)}
+											className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
+											placeholder="#2563eb"
+										/>
+									</div>
+								</div>
+								<div className="space-y-2">
+									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+										Underlying Asset (Ticker)
+									</label>
+									<input
+										value={underlyingSymbol}
+										onChange={(event) => setUnderlyingSymbol(event.target.value)}
+										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										placeholder="e.g. NASDAQ:COIN"
+									/>
+								</div>
+								<div className="space-y-2">
+									<label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+										Description (optional)
+									</label>
+									<textarea
+										value={description}
+										onChange={(event) => setDescription(event.target.value)}
+										className="w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										rows={4}
+										placeholder="Goals and strategy for this project..."
+									/>
+								</div>
+								<div className="p-4 bg-slate-50 border border-border-light rounded-lg">
+									<div className="flex gap-3">
+										<span className="material-symbols-outlined text-slate-600">info</span>
+										<p className="text-xs text-slate-600 leading-relaxed">
+											After creating the project, you can add ISINs or tickers to track positions
+											and start automated analysis.
+										</p>
+									</div>
+								</div>
+							</>
+						)}
+						{error ? (
+							<div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+								{error}
+							</div>
+						) : null}
+					</div>
+					<div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
+						<button
+							type="button"
+							onClick={() => setShowCreate(false)}
+							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							onClick={handleCreateProject}
+							disabled={!canCreate || loading}
+							className="flex-1 px-5 py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+						>
+							{loading ? "Creating..." : "Create project"}
+						</button>
+					</div>
+				</div>
+			</div>
 
-    </div>
-  );
+		</div>
+	);
 }
