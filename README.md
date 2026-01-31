@@ -61,6 +61,7 @@ See `concepts/app-overview.md` for the full object relationship map.
 - `concepts/project-detail-positions.md`
 - `concepts/optionsschein-calculator.md`
 - `concepts/settings-page.md`
+- `app/(app)/README.md` (UI design patterns and layout conventions)
 
 ## Tech Stack
 - Next.js (App Router)

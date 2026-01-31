@@ -364,8 +364,53 @@ export default function ProjectsPage() {
 						{listError}
 					</div>
 				) : isLoading ? (
-					<div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-						Loading projects...
+					<div className="rounded-xl border border-border-light overflow-hidden bg-white">
+						<div className="overflow-x-auto overflow-y-hidden">
+							<table className="w-full min-w-[980px] text-left border-collapse">
+								<thead>
+									<tr className="text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-border-light">
+										<th className="px-6 py-4">Projektname</th>
+										<th className="px-6 py-4">Letzter Preis</th>
+										<th className="px-6 py-4">Risikoprofil</th>
+										<th className="px-6 py-4">Put/Call Ratio</th>
+										<th className="px-6 py-4">Positionen</th>
+										<th className="px-6 py-4 text-right">Info</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-border-light">
+									{Array.from({ length: 5 }).map((_, index) => (
+										<tr key={index} className="animate-pulse">
+											<td className="px-6 py-4">
+												<div className="flex items-center gap-3">
+													<div className="h-8 w-8 rounded bg-slate-200" />
+													<div className="space-y-2">
+														<div className="h-3 w-40 rounded bg-slate-200" />
+														<div className="h-2 w-20 rounded bg-slate-100" />
+													</div>
+												</div>
+											</td>
+											<td className="px-6 py-4">
+												<div className="h-3 w-20 rounded bg-slate-200" />
+												<div className="mt-2 h-2 w-16 rounded bg-slate-100" />
+											</td>
+											<td className="px-6 py-4">
+												<div className="h-6 w-24 rounded-full bg-slate-200" />
+											</td>
+											<td className="px-6 py-4">
+												<div className="h-3 w-16 rounded bg-slate-200" />
+												<div className="mt-2 h-2 w-20 rounded bg-slate-100" />
+											</td>
+											<td className="px-6 py-4">
+												<div className="h-3 w-10 rounded bg-slate-200" />
+											</td>
+											<td className="px-6 py-4 text-right">
+												<div className="inline-block h-4 w-4 rounded-full bg-slate-200" />
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				) : projects.length === 0 ? (
 					<div className="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">

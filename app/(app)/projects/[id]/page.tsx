@@ -165,8 +165,11 @@ export default function ProjectDetailPage() {
 	} | null>(null);
 	const [showRiskScoreModal, setShowRiskScoreModal] = useState(false);
 	const [showTickerDetails, setShowTickerDetails] = useState(false);
-	const [showColorModal, setShowColorModal] = useState(false);
-	const [colorDraft, setColorDraft] = useState("#2563eb");
+	const [showTickerModal, setShowTickerModal] = useState(false);
+	const [tickerDraft, setTickerDraft] = useState("");
+	const [tickerSaveError, setTickerSaveError] = useState<string | null>(null);
+	const [tickerSaveLoading, setTickerSaveLoading] = useState(false);
+	const [fetchMassiveAfterTicker, setFetchMassiveAfterTicker] = useState(true);
 	const [editName, setEditName] = useState("");
 	const [editDescription, setEditDescription] = useState("");
 	const [editBaseCurrency, setEditBaseCurrency] = useState("");
@@ -496,7 +499,9 @@ export default function ProjectDetailPage() {
 		}
 	}
 
-	async function handleFetchMassiveInfo() {
+	async function handleFetchMassiveInfo(
+		options?: { symbol?: string; applyMetadata?: boolean }
+	) {
 		if (!projectId) return;
 		setMassiveLoading(true);
 		setMassiveError(null);
@@ -504,7 +509,7 @@ export default function ProjectDetailPage() {
 			const response = await fetch(`/api/projects/${projectId}/ticker-massive`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ symbol: project?.underlyingSymbol ?? "" }),
+				body: JSON.stringify({ symbol: options?.symbol ?? project?.underlyingSymbol ?? "" }),
 			});
 			const payload = (await response.json().catch(() => null)) as
 				| { tickerInfo?: Project["massiveTickerInfo"]; fetchedAt?: string; error?: string }
@@ -524,6 +529,39 @@ export default function ProjectDetailPage() {
 						}
 						: prev
 				);
+				if (options?.applyMetadata) {
+					const rawPayload = payload.tickerInfo?.payload as Record<string, unknown> | null;
+					const results =
+						rawPayload && typeof (rawPayload as any).results === "object"
+							? ((rawPayload as any).results as Record<string, unknown>)
+							: rawPayload;
+					const nextName =
+						results && typeof results.name === "string" ? results.name : undefined;
+					const nextDescription =
+						results && typeof results.description === "string"
+							? results.description
+							: undefined;
+					const nextCurrency =
+						results && typeof results.currency_name === "string"
+							? results.currency_name.toUpperCase()
+							: undefined;
+					const nextSymbol =
+						results && typeof results.ticker === "string" ? results.ticker : undefined;
+
+					if (nextName || nextDescription || nextCurrency || nextSymbol) {
+						await fetch(`/api/projects/${projectId}`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								name: nextName,
+								description: nextDescription,
+								baseCurrency: nextCurrency,
+								underlyingSymbol: nextSymbol,
+							}),
+						});
+						await loadProject();
+					}
+				}
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Unable to fetch Massive data";
@@ -848,7 +886,6 @@ export default function ProjectDetailPage() {
     setEditBaseCurrency(project.baseCurrency ?? "EUR");
     setEditUnderlyingSymbol(project.underlyingSymbol ?? "");
     setEditColor(project.color ?? "#2563eb");
-    setColorDraft(project.color ?? "#2563eb");
     setUnderlyingPriceDraft(project.underlyingLastPrice ?? "");
     setUnderlyingPriceCurrency(
       (project.underlyingLastPriceCurrency ??
@@ -856,6 +893,7 @@ export default function ProjectDetailPage() {
         project.baseCurrency ??
         "USD").toUpperCase()
     );
+    setTickerDraft(project.underlyingSymbol ?? "");
     setPositionCurrency(project.baseCurrency ?? "EUR");
   }, [project]);
 
@@ -1103,17 +1141,20 @@ export default function ProjectDetailPage() {
 		}
 	}
 
-  async function handleUpdateColor() {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
+	async function handleUpdateTickerSymbol() {
+		if (!projectId) return;
+		const trimmed = tickerDraft.trim();
+		if (!trimmed) {
+			setTickerSaveError("Bitte einen Ticker eingeben.");
+			return;
+		}
+		setTickerSaveLoading(true);
+		setTickerSaveError(null);
 		try {
 			const response = await fetch(`/api/projects/${projectId}`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					color: colorDraft.trim() || undefined,
-				}),
+				body: JSON.stringify({ underlyingSymbol: trimmed }),
 			});
 			const payload = (await response.json().catch(() => null)) as
 				| { error?: string }
@@ -1123,20 +1164,27 @@ export default function ProjectDetailPage() {
 			if (!response.ok) {
 				const errorMessage =
 					payload && "error" in payload
-						? payload.error ?? "Unable to update project"
-						: "Unable to update project";
+						? payload.error ?? "Unable to update ticker"
+						: "Unable to update ticker";
 				throw new Error(errorMessage);
 			}
 
-			setShowColorModal(false);
-			await loadProject();
+			if (payload && "project" in payload && payload.project) {
+				setProject(payload.project);
+			}
+
+			setShowTickerModal(false);
+
+			if (fetchMassiveAfterTicker) {
+				await handleFetchMassiveInfo({ symbol: trimmed, applyMetadata: true });
+			}
 		} catch (err) {
-			const message = err instanceof Error ? err.message : "Unable to update project";
-			setError(message);
+			const message = err instanceof Error ? err.message : "Unable to update ticker";
+			setTickerSaveError(message);
 		} finally {
-			setLoading(false);
-    }
-  }
+			setTickerSaveLoading(false);
+		}
+	}
 
   async function handleUpdateBaseCurrency(nextCurrency: string) {
     if (!projectId) return;
@@ -1422,24 +1470,19 @@ export default function ProjectDetailPage() {
 						<div className="flex items-center gap-4">
 							{(() => {
 								const logoUrl = getMassiveLogo(project.massiveTickerInfo?.payload ?? null);
-								const colorMeta = projectColor(project.id);
-								const baseClasses = "h-12 w-12 aspect-square rounded-xl flex items-center justify-center overflow-hidden";
-								const className = logoUrl
-									? baseClasses
-									: `${baseClasses} ${colorMeta.className} ${colorMeta.textClass}`;
-								const style = logoUrl ? undefined : colorMeta.style;
+								const baseClasses =
+									"h-12 w-12 aspect-square rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 bg-slate-100 text-slate-600";
 
 								return (
 									<div
-										className={className}
-										style={style}
+										className={baseClasses}
 										role="button"
 										tabIndex={0}
-										onClick={() => setShowColorModal(true)}
+										onClick={() => setShowTickerModal(true)}
 										onKeyDown={(event) => {
 											if (event.key === "Enter" || event.key === " ") {
 												event.preventDefault();
-												setShowColorModal(true);
+												setShowTickerModal(true);
 											}
 										}}
 									>
@@ -1718,7 +1761,7 @@ export default function ProjectDetailPage() {
 												</button>
 												<button
 													type="button"
-													onClick={handleFetchMassiveInfo}
+													onClick={() => handleFetchMassiveInfo()}
 													disabled={!project.underlyingSymbol || massiveLoading}
 													className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 disabled:opacity-60"
 												>
@@ -1868,17 +1911,17 @@ export default function ProjectDetailPage() {
           ) : null} */}
 
 					<div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div className="bg-surface-light border border-border-light p-4 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setShowRiskScoreModal(true)}
+              className="bg-surface-light border border-border-light p-4 rounded-xl text-left transition-all hover:border-slate-300 hover:shadow-sm"
+            >
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-slate-500 uppercase">Risk Profile</p>
-                <button
-                  type="button"
-                  onClick={() => setShowRiskScoreModal(true)}
-                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase hover:text-slate-600 transition-colors"
-                >
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase">
                   <span className="material-symbols-outlined text-[14px]">info</span>
                   Score
-                </button>
+                </span>
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <div className="h-9 w-9 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center">
@@ -1895,7 +1938,7 @@ export default function ProjectDetailPage() {
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
 						<div className="bg-surface-light border border-border-light p-4 rounded-xl">
 							<p className="text-xs font-semibold text-slate-500 uppercase">Put/Call Ratio</p>
 							<p className="text-2xl font-bold mt-1">
@@ -2721,23 +2764,6 @@ export default function ProjectDetailPage() {
 							/>
 						</div>
 						<div>
-							<label className="text-xs font-bold uppercase text-slate-500">Project color</label>
-							<div className="mt-2 flex items-center gap-3">
-								<input
-									type="color"
-									value={editColor}
-									onChange={(event) => setEditColor(event.target.value)}
-									className="h-11 w-16 rounded-lg border border-border-light bg-transparent p-1"
-								/>
-								<input
-									value={editColor}
-									onChange={(event) => setEditColor(event.target.value)}
-									className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
-									placeholder="#2563eb"
-								/>
-							</div>
-						</div>
-						<div>
 							<label className="text-xs font-bold uppercase text-slate-500">Description</label>
 							<textarea
 								value={editDescription}
@@ -2877,66 +2903,93 @@ export default function ProjectDetailPage() {
 			</div>
 
 			<div
-				className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${showColorModal ? "" : "hidden"
+				className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 ${showTickerModal ? "" : "hidden"
 					}`}
-				onClick={() => setShowColorModal(false)}
+				onClick={() => setShowTickerModal(false)}
 			/>
 			<div
-				className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${showColorModal ? "" : "pointer-events-none"
+				className={`fixed inset-0 z-50 flex items-center justify-center px-4 ${showTickerModal ? "" : "pointer-events-none"
 					}`}
-				onClick={() => setShowColorModal(false)}
-				aria-hidden={!showColorModal}
+				onClick={() => setShowTickerModal(false)}
+				aria-hidden={!showTickerModal}
 			>
 				<div
-					className={`w-full max-w-sm bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${showColorModal ? "scale-100 opacity-100" : "scale-95 opacity-0"
+					className={`w-full max-w-sm bg-white shadow-2xl border border-border-light rounded-2xl transform transition-all duration-300 ease-in-out ${showTickerModal ? "scale-100 opacity-100" : "scale-95 opacity-0"
 						}`}
 					onClick={(event) => event.stopPropagation()}
 				>
 					<div className="p-6 border-b border-border-light flex items-center justify-between">
 						<div>
-							<h3 className="text-lg font-bold text-slate-900">Projektfarbe</h3>
+							<h3 className="text-lg font-bold text-slate-900">Update Ticker</h3>
 							<p className="text-sm text-slate-500 mt-1">
-								Wählen Sie eine Farbe für das Projekt.
+								Change the underlying symbol for this project.
 							</p>
 						</div>
 						<button
 							type="button"
-							onClick={() => setShowColorModal(false)}
+							onClick={() => setShowTickerModal(false)}
 							className="p-2 hover:bg-slate-100 rounded-full transition-colors"
 						>
 							<span className="material-symbols-outlined">close</span>
 						</button>
 					</div>
 					<div className="p-6 space-y-4">
-						<div className="flex items-center gap-3">
+						<div>
+							<label className="text-xs font-bold uppercase text-slate-500">Ticker</label>
 							<input
-								type="color"
-								value={colorDraft}
-								onChange={(event) => setColorDraft(event.target.value)}
-								className="h-12 w-16 rounded-lg border border-border-light bg-transparent p-1"
-							/>
-							<input
-								value={colorDraft}
-								onChange={(event) => setColorDraft(event.target.value)}
-								className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50 font-mono uppercase"
+								value={tickerDraft}
+								onChange={(event) => setTickerDraft(event.target.value)}
+								className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+								placeholder="NASDAQ:COIN"
 							/>
 						</div>
+						<div className="rounded-xl border border-border-light bg-white p-4 shadow-sm">
+							<div className="flex items-start justify-between gap-4">
+								<div>
+									<div className="flex items-center gap-2">
+										<p className="text-sm font-semibold text-slate-900">
+											Auto-update from Massive
+										</p>
+									</div>
+									<p className="mt-1 text-xs text-slate-500">
+										When enabled, saving the ticker will also fetch Massive data and update
+										name, description, base currency, and symbol automatically.
+									</p>
+								</div>
+								<label className="relative inline-flex cursor-pointer items-center">
+									<input
+										type="checkbox"
+										checked={fetchMassiveAfterTicker}
+										onChange={(event) => setFetchMassiveAfterTicker(event.target.checked)}
+										className="sr-only peer"
+									/>
+									<span className="h-7 w-12 rounded-full bg-slate-200 transition-colors peer-checked:bg-blue-600" />
+									<span className="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+									<span className="absolute left-[5px] top-[5px] text-white opacity-0 transition-all peer-checked:translate-x-5 peer-checked:opacity-100">
+										<span className="material-symbols-outlined text-[14px]">check</span>
+									</span>
+								</label>
+							</div>
+						</div>
+						{tickerSaveError ? (
+							<p className="text-sm text-rose-600">{tickerSaveError}</p>
+						) : null}
 					</div>
 					<div className="p-6 border-t border-border-light bg-slate-50 flex gap-3 rounded-b-2xl">
 						<button
 							type="button"
-							onClick={() => setShowColorModal(false)}
+							onClick={() => setShowTickerModal(false)}
 							className="flex-1 px-5 py-3 border border-border-light rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
 						>
 							Abbrechen
 						</button>
 						<button
 							type="button"
-							onClick={handleUpdateColor}
-							className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all"
-							disabled={loading}
+							onClick={handleUpdateTickerSymbol}
+							className="flex-1 px-5 py-3 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-60"
+							disabled={tickerSaveLoading}
 						>
-							{loading ? "Speichern..." : "Farbe speichern"}
+							{tickerSaveLoading ? "Speichern..." : "Ticker speichern"}
 						</button>
 					</div>
 				</div>
