@@ -42,6 +42,9 @@ export async function PUT(
   if (gate.status !== "ok") {
     return gateToResponse(gate.status);
   }
+  if (gate.user.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
 
   const payload = (await request.json().catch(() => null)) as UpdatePayload | null;
   if (!payload) {

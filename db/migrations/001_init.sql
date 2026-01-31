@@ -7,6 +7,7 @@ create table if not exists users (
   provider_account_id text,
   active boolean not null default true,
   role text not null default 'enduser',
+  preferred_currency text not null default 'EUR',
   created_at timestamptz not null,
   updated_at timestamptz not null,
   risk_profile text,

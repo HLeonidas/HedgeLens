@@ -39,6 +39,9 @@ export async function GET(request: Request) {
   if (gate.status !== "ok") {
     return gateToResponse(gate.status);
   }
+  if (gate.user.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
 
   const url = new URL(request.url);
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));

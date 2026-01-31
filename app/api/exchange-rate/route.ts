@@ -65,6 +65,9 @@ export async function GET(request: Request) {
   if (!from || !to) {
     return NextResponse.json({ error: "from/to required" }, { status: 400 });
   }
+  if (force && guard.user.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
 
   const existing = await getExchangeRate(from, to);
   if (existing && isRateFresh(existing) && !force) {
@@ -83,6 +86,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const guard = await requireApiUser();
   if ("response" in guard) return guard.response;
+  if (guard.user.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
 
   const body = (await request.json().catch(() => null)) as
     | { from?: string; to?: string; rate?: number; force?: boolean }

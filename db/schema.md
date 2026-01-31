@@ -13,6 +13,7 @@ This file defines the minimal storage schema and cache keys to align with the fr
 - provider_account_id (text, nullable)
 - active (boolean, not null)
 - role (text, not null) -- admin | enduser
+- preferred_currency (text, not null) -- ISO code (e.g. EUR, USD)
 - created_at (timestamptz, not null)
 - updated_at (timestamptz, not null)
 - risk_profile (text, nullable)

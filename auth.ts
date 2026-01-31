@@ -25,6 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.userId = dbUser.id;
           token.active = dbUser.active;
           token.role = dbUser.role;
+          token.preferred_currency = dbUser.preferred_currency;
         }
       }
       return token;
@@ -34,6 +35,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = (token.userId as string | undefined) ?? token.sub;
         session.user.active = (token.active as boolean | undefined) ?? true;
         session.user.role = (token.role as "admin" | "enduser" | undefined) ?? "enduser";
+        session.user.preferred_currency =
+          (token.preferred_currency as string | undefined) ?? "EUR";
       }
       return session;
     },

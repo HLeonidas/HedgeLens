@@ -7,6 +7,7 @@ import { getRedis } from "@/lib/redis";
 import type { Redis } from "@upstash/redis";
 
 export type UserRole = "admin" | "enduser";
+export type PreferredCurrency = "EUR" | "USD" | "GBP" | "CHF" | "JPY" | "AUD" | "CAD" | "SEK" | "NOK" | "DKK";
 
 export type DbUser = {
   id: string;
@@ -17,6 +18,7 @@ export type DbUser = {
   provider_account_id: string | null;
   active: boolean;
   role: UserRole;
+  preferred_currency: PreferredCurrency;
   created_at: string;
   updated_at: string;
 };
@@ -50,6 +52,8 @@ export async function upsertUserFromOAuth(input: {
   const createdAt = existingUser?.created_at ?? now.toISOString();
   const active = existingUser?.active ?? false;
   const role: UserRole = existingUser?.role ?? "enduser";
+  const preferredCurrency: PreferredCurrency =
+    existingUser?.preferred_currency ?? "EUR";
   const user: StoredUser = {
     id,
     email: input.email,
@@ -59,6 +63,7 @@ export async function upsertUserFromOAuth(input: {
     provider_account_id: input.providerAccountId ?? null,
     active,
     role,
+    preferred_currency: preferredCurrency,
     created_at: createdAt,
     updated_at: now.toISOString(),
   };
@@ -109,8 +114,14 @@ export async function requireActiveUser(): Promise<RequireActiveUserResult> {
 async function getStoredUser(id: string, redis: Redis) {
   const stored = await redis.get<StoredUser>(`user:${id}`);
   if (!stored) return null;
-  if (!stored.role) {
-    const patched: StoredUser = { ...stored, role: "enduser" };
+  let patched = stored;
+  if (!patched.role) {
+    patched = { ...patched, role: "enduser" };
+  }
+  if (!patched.preferred_currency) {
+    patched = { ...patched, preferred_currency: "EUR" };
+  }
+  if (patched !== stored) {
     await redis.set(`user:${id}`, patched);
     return patched;
   }
