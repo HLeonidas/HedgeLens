@@ -79,6 +79,7 @@ type Position = {
 	rate?: number;
 	dividendYield?: number;
 	ratio?: number;
+	leverage?: number;
 	marketPrice?: number;
 	computed?: PositionComputed;
 	timeValueCurve?: TimeValuePoint[];
@@ -196,6 +197,7 @@ export default function ProjectDetailPage() {
 	const [ratePct, setRatePct] = useState<number | "">(3);
 	const [dividendYieldPct, setDividendYieldPct] = useState<number | "">(0);
 	const [ratio, setRatio] = useState<number | "">(1);
+	const [leverage, setLeverage] = useState<number | "">("");
 	const [positionCreateMode, setPositionCreateMode] = useState<"manual" | "lookup">("lookup");
 	const [positionAssetType, setPositionAssetType] = useState<"options" | "spot">("options");
 	const [lookupValue, setLookupValue] = useState("");
@@ -216,7 +218,10 @@ export default function ProjectDetailPage() {
 		lastTradingDay?: string | null;
 		payoutDate?: string | null;
 		breakEven?: string | null;
+		leverage?: number | null;
 	} | null>(null);
+	const lookupLeverageRef = useRef<number | null>(null);
+	const lookupRatioRef = useRef<number | null>(null);
 
   const canAdd = useMemo(() => {
     const baseValid = Boolean(isin.trim()) && Number(size) > 0 && entryPrice !== "";
@@ -731,12 +736,15 @@ export default function ProjectDetailPage() {
     setRatePct(3);
     setDividendYieldPct(0);
     setRatio(1);
+		setLeverage("");
     setLookupValue("");
     setLookupError(null);
 		setLookupSuccess(false);
 		setLookupOsLoading(false);
 		setLookupOsError(null);
 		setLookupOsInfo(null);
+		lookupLeverageRef.current = null;
+		lookupRatioRef.current = null;
     setPositionCreateMode("lookup");
     setPositionAssetType("options");
   }
@@ -808,15 +816,21 @@ export default function ProjectDetailPage() {
 						stammdaten?: Record<string, { raw?: string | null }>;
 						handelsdaten?: Record<string, { raw?: string | null }>;
 						kennzahlen?: Record<string, { raw?: string | null }>;
+						hebel?: Record<string, { raw?: string | null; value?: number | null }>;
 					};
 				};
 				const stammdaten = data.details?.stammdaten ?? {};
 				const handelsdaten = data.details?.handelsdaten ?? {};
 				const kennzahlen = data.details?.kennzahlen ?? {};
+				const hebel = data.details?.hebel ?? {};
 				const getRaw = (
 					section: Record<string, { raw?: string | null }>,
 					key: string
 				) => section[key]?.raw ?? null;
+				const getValue = (
+					section: Record<string, { raw?: string | null; value?: number | null }>,
+					key: string
+				) => section[key]?.value ?? null;
 
 				const productName = getRaw(stammdaten, "produktname");
 				if (productName) setName(productName);
@@ -830,6 +844,7 @@ export default function ProjectDetailPage() {
 				const ratioRaw = getRaw(stammdaten, "bezugsverhältnis");
 				const ratioValue = parseGermanNumber(ratioRaw);
 				if (ratioValue !== null) setRatio(ratioValue);
+				lookupRatioRef.current = ratioValue ?? null;
 				const currencyRaw = getRaw(stammdaten, "währung");
 				if (currencyRaw) setPositionCurrency(currencyRaw.toUpperCase());
 				const underlyingRaw = getRaw(stammdaten, "basiswert");
@@ -849,6 +864,12 @@ export default function ProjectDetailPage() {
 				const lastValue = parseGermanNumber(lastRaw);
 				if (lastValue !== null) setMarketPrice(lastValue);
 
+				const leverageValue =
+					findSectionValue(hebel, "einfacher hebel") ??
+					parseGermanNumber(findSectionRaw(hebel, "einfacher hebel"));
+				if (leverageValue !== null) setLeverage(leverageValue);
+				lookupLeverageRef.current = leverageValue ?? null;
+
 				setLookupOsInfo({
 					productName: getRaw(stammdaten, "produktname"),
 					issuer: getRaw(stammdaten, "emittent"),
@@ -861,6 +882,7 @@ export default function ProjectDetailPage() {
 					lastTradingDay: getRaw(handelsdaten, "letzter handelstag"),
 					payoutDate: getRaw(handelsdaten, "rückzahlungstag"),
 					breakEven: getRaw(kennzahlen, "break even"),
+					leverage: leverageValue,
 				});
 				setLookupSuccess(true);
 			} catch (err) {
@@ -901,6 +923,16 @@ export default function ProjectDetailPage() {
 								? Number(entryPrice)
 								: undefined
 					: undefined;
+			const leverageValue =
+				positionAssetType === "options"
+					? leverage !== ""
+						? Number(leverage)
+						: lookupOsInfo?.leverage ?? lookupLeverageRef.current ?? undefined
+					: undefined;
+			const normalizedLeverage =
+				leverageValue !== undefined && Number.isFinite(leverageValue)
+					? leverageValue
+					: undefined;
         const payload = {
           name: name.trim() || undefined,
           isin: isin.trim(),
@@ -924,7 +956,12 @@ export default function ProjectDetailPage() {
         dividendYield:
           normalizedPricingMode === "model" ? Number(dividendYieldPct || 0) / 100 : undefined,
         ratio:
-          positionAssetType === "options" && ratio !== "" ? Number(ratio) : undefined,
+          positionAssetType === "options"
+						? ratio !== ""
+							? Number(ratio)
+							: lookupRatioRef.current ?? undefined
+						: undefined,
+				leverage: normalizedLeverage,
       };
 
 			const response = editingPositionId
@@ -1086,6 +1123,7 @@ export default function ProjectDetailPage() {
     setRatePct(3);
     setDividendYieldPct(0);
     setRatio(1);
+		setLeverage("");
   }, [project, positionAssetType, editingPositionId]);
 
   useEffect(() => {
@@ -1220,10 +1258,11 @@ export default function ProjectDetailPage() {
     setUnderlyingPrice(position.underlyingPrice ?? "");
     setStrike(position.strike ?? "");
     setExpiry(position.expiry ?? "");
-		setVolatilityPct(position.volatility ? position.volatility * 100 : "");
-		setRatePct(position.rate ? position.rate * 100 : 3);
-		setDividendYieldPct(position.dividendYield ? position.dividendYield * 100 : 0);
-		setRatio(position.ratio ?? 1);
+    setVolatilityPct(position.volatility ? position.volatility * 100 : "");
+    setRatePct(position.rate ? position.rate * 100 : 3);
+    setDividendYieldPct(position.dividendYield ? position.dividendYield * 100 : 0);
+    setRatio(position.ratio ?? 1);
+		setLeverage(position.leverage ?? "");
 		setShowPositionModal(true);
 	}
 
@@ -1548,6 +1587,15 @@ export default function ProjectDetailPage() {
 		return `${sign}${formatNumber((value * 100).toFixed(2))}%`;
 	}
 
+	function formatLeverage(value?: number | null) {
+		if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+		const rounded = Math.round(value * 100) / 100;
+		return new Intl.NumberFormat("de-DE", {
+			minimumFractionDigits: 1,
+			maximumFractionDigits: 2,
+		}).format(rounded);
+	}
+
 	function formatScoreDelta(value: number | null) {
 		if (value === null || !Number.isFinite(value)) return "—";
 		const sign = value > 0 ? "+" : "";
@@ -1600,6 +1648,28 @@ export default function ProjectDetailPage() {
 		if (!match) return null;
 		const [, day, month, year] = match;
 		return `${year}-${month}-${day}`;
+	}
+
+	function findSectionValue(
+		section: Record<string, { raw?: string | null; value?: number | null }>,
+		key: string
+	) {
+		const needle = key.toLowerCase();
+		for (const [label, entry] of Object.entries(section)) {
+			if (label.includes(needle)) return entry?.value ?? null;
+		}
+		return null;
+	}
+
+	function findSectionRaw(
+		section: Record<string, { raw?: string | null; value?: number | null }>,
+		key: string
+	) {
+		const needle = key.toLowerCase();
+		for (const [label, entry] of Object.entries(section)) {
+			if (label.includes(needle)) return entry?.raw ?? null;
+		}
+		return null;
 	}
 
 	function riskScoreTone(score: number | null) {
@@ -2607,6 +2677,7 @@ export default function ProjectDetailPage() {
 											const priceUsd =
 												displayValue === undefined ? null : convertValue(displayValue, currentCurrency, "USD");
 											const isLastRow = index === positions.length - 1;
+											const leverageValue = position.leverage ?? null;
 											return (
 												<tr key={position.id} className="hover:bg-slate-50/70 transition-colors">
 													<td className="px-4 py-3">
@@ -2691,7 +2762,11 @@ export default function ProjectDetailPage() {
 														)}
 													</td>
 													<td className="px-4 py-3 text-sm text-slate-700">
-														{position.side === "spot" ? "—" : ratio}
+														<span
+															title="Current effective leverage (price-based). Indicates how strongly the derivative reacts to movements of the underlying."
+														>
+															{position.side === "spot" ? "—" : formatLeverage(leverageValue)}
+														</span>
 													</td>
 													<td className="px-4 py-3 text-sm text-slate-600">
 														{position.side === "spot" ? "—" : timeToExpiry(position.expiry)}

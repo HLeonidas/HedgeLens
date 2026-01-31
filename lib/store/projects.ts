@@ -73,6 +73,7 @@ export type Position = {
   rate?: number;
   dividendYield?: number;
   ratio?: number;
+  leverage?: number;
   marketPrice?: number;
   computed?: {
     fairValue: number;
@@ -571,6 +572,7 @@ export async function addPosition(
     rate?: number;
     dividendYield?: number;
     ratio?: number;
+    leverage?: number;
     marketPrice?: number;
     computed?: Position["computed"];
     timeValueCurve?: Position["timeValueCurve"];
@@ -600,6 +602,7 @@ export async function addPosition(
     rate: input.rate,
     dividendYield: input.dividendYield,
     ratio: input.ratio,
+    leverage: input.leverage,
     marketPrice: input.marketPrice,
     computed: input.computed,
     timeValueCurve: input.timeValueCurve,

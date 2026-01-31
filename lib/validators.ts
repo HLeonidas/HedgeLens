@@ -35,6 +35,7 @@ export type CreatePositionInput = {
   rate?: number;
   dividendYield?: number;
   ratio?: number;
+  leverage?: number;
   marketPrice?: number;
 };
 
@@ -88,6 +89,7 @@ const createMarketSchema = z.object({
   underlyingSymbol: z.string().trim().optional(),
   expiry: dateSchema.optional(),
   ratio: optionalNumber(z.number().finite().gt(0, "Ratio must be greater than 0")),
+  leverage: optionalNumber(z.number().finite().gt(0, "Leverage must be greater than 0")),
   dividendYield: optionalNumber(z.number().finite().min(0, "Dividend yield must be 0 or greater")),
 });
 
@@ -111,6 +113,7 @@ const createModelSchema = z.object({
     z.number().finite().min(0, "Dividend yield must be 0 or greater")
   ),
   ratio: optionalNumber(z.number().finite().gt(0, "Ratio must be greater than 0")),
+  leverage: optionalNumber(z.number().finite().gt(0, "Leverage must be greater than 0")),
   marketPrice: optionalNumber(z.number().finite().min(0, "Market price must be 0 or greater")),
 });
 
@@ -141,6 +144,7 @@ const updatePositionSchema = z.object({
     z.number().finite().min(0, "Dividend yield must be 0 or greater")
   ),
   ratio: optionalNumber(z.number().finite().gt(0, "Ratio must be greater than 0")),
+  leverage: optionalNumber(z.number().finite().gt(0, "Leverage must be greater than 0")),
   marketPrice: optionalNumber(
     z.number().finite().min(0, "Market price must be 0 or greater")
   ),

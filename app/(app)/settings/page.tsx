@@ -25,6 +25,13 @@ type ExchangeRate = {
 	source: "alpha_vantage" | "manual";
 };
 
+type RiskFreeRate = {
+	region: "US" | "EU";
+	rate: number;
+	fetchedAt: string;
+	source: "manual";
+};
+
 export default function SettingsPage() {
 	const [users, setUsers] = useState<UserRow[]>([]);
 	const [page, setPage] = useState(1);
@@ -44,6 +51,11 @@ export default function SettingsPage() {
 	const [fxError, setFxError] = useState<string | null>(null);
 	const [manualRate, setManualRate] = useState<number | "">("");
 	const [showManualFxModal, setShowManualFxModal] = useState(false);
+	const [riskFreeRates, setRiskFreeRates] = useState<Record<string, RiskFreeRate>>({});
+	const [riskFreeLoading, setRiskFreeLoading] = useState(false);
+	const [riskFreeError, setRiskFreeError] = useState<string | null>(null);
+	const [manualRiskFreeUs, setManualRiskFreeUs] = useState<number | "">("");
+	const [manualRiskFreeEu, setManualRiskFreeEu] = useState<number | "">("");
 	const [showEditUserModal, setShowEditUserModal] = useState(false);
 	const [editUser, setEditUser] = useState<UserRow | null>(null);
 	const [editName, setEditName] = useState("");
@@ -182,6 +194,53 @@ export default function SettingsPage() {
 		};
 	}, []);
 
+	useEffect(() => {
+		let ignore = false;
+		async function loadRiskFreeRates() {
+			setRiskFreeLoading(true);
+			setRiskFreeError(null);
+			try {
+				const [usResponse, euResponse] = await Promise.all([
+					fetch("/api/risk-free-rate?region=US"),
+					fetch("/api/risk-free-rate?region=EU"),
+				]);
+				const [usPayload, euPayload] = await Promise.all([
+					usResponse.json().catch(() => null),
+					euResponse.json().catch(() => null),
+				]) as Array<{ rate?: RiskFreeRate; error?: string } | null>;
+
+				if (!usResponse.ok || !usPayload?.rate) {
+					throw new Error(usPayload?.error ?? "Failed to load US risk free rate");
+				}
+				if (!euResponse.ok || !euPayload?.rate) {
+					throw new Error(euPayload?.error ?? "Failed to load EU risk free rate");
+				}
+
+				if (!ignore) {
+					setRiskFreeRates({
+						US: usPayload.rate,
+						EU: euPayload.rate,
+					});
+					setManualRiskFreeUs(Number((usPayload.rate.rate * 100).toFixed(4)));
+					setManualRiskFreeEu(Number((euPayload.rate.rate * 100).toFixed(4)));
+				}
+			} catch (err) {
+				if (!ignore) {
+					setRiskFreeError(
+						err instanceof Error ? err.message : "Failed to load risk free rates"
+					);
+				}
+			} finally {
+				if (!ignore) setRiskFreeLoading(false);
+			}
+		}
+
+		void loadRiskFreeRates();
+		return () => {
+			ignore = true;
+		};
+	}, []);
+
 	function handleThemeChange(nextTheme: "light" | "dark") {
 		setTheme(nextTheme);
 		localStorage.setItem("theme", nextTheme);
@@ -195,6 +254,40 @@ export default function SettingsPage() {
 		setEditActive(user.active);
 		setEditError(null);
 		setShowEditUserModal(true);
+	}
+
+	async function handleSaveRiskFreeRate(region: "US" | "EU") {
+		const value = region === "US" ? manualRiskFreeUs : manualRiskFreeEu;
+		if (value === "" || !Number.isFinite(Number(value))) {
+			setRiskFreeError("Invalid risk free rate");
+			return;
+		}
+		setRiskFreeLoading(true);
+		setRiskFreeError(null);
+		try {
+			const response = await fetch("/api/risk-free-rate", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					region,
+					rate: Number(value) / 100,
+				}),
+			});
+			const payload = (await response.json().catch(() => null)) as
+				| { rate?: RiskFreeRate; error?: string }
+				| null;
+			if (!response.ok || !payload?.rate) {
+				throw new Error(payload?.error ?? "Failed to update risk free rate");
+			}
+			const nextRate = payload.rate;
+			setRiskFreeRates((prev) => ({ ...prev, [region]: nextRate }));
+		} catch (err) {
+			setRiskFreeError(
+				err instanceof Error ? err.message : "Failed to update risk free rate"
+			);
+		} finally {
+			setRiskFreeLoading(false);
+		}
 	}
 
 	async function handlePreferredCurrencyChange(next: string) {
@@ -496,6 +589,84 @@ export default function SettingsPage() {
 						</div>
 					</div>
 
+				</div>
+
+				<div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
+					<div className="flex flex-wrap items-center gap-4 mb-5">
+						<div className="flex-1">
+							<h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+								Risk-Free Rates
+							</h3>
+							<p className="text-xs text-slate-500 mt-1 font-semibold">
+								Reference rates for option pricing (US & EU).
+							</p>
+						</div>
+					</div>
+					<div className="grid gap-4 md:grid-cols-2">
+						{(["US", "EU"] as const).map((region) => {
+							const rate = riskFreeRates[region];
+							const display = rate ? (rate.rate * 100).toFixed(4) : "—";
+							const manualValue = region === "US" ? manualRiskFreeUs : manualRiskFreeEu;
+							return (
+								<div
+									key={region}
+									className="rounded-2xl border border-border-light bg-slate-50 p-4"
+								>
+									<div className="flex items-center justify-between">
+										<div>
+											<p className="text-xs uppercase text-slate-500 font-semibold">
+												{region} Risk-Free
+											</p>
+											<p className="mt-1 text-2xl font-bold text-slate-900">
+												{display}%
+											</p>
+											<p className="text-[11px] text-slate-400 mt-1">
+												{rate
+													? `Last update: ${new Date(rate.fetchedAt).toLocaleString()} · Manual`
+													: "No data loaded yet."}
+											</p>
+										</div>
+									</div>
+									{isAdmin ? (
+										<div className="mt-4">
+											<label className="text-[10px] font-semibold uppercase text-slate-400">
+												Manual rate (%)
+											</label>
+											<div className="mt-2 flex items-center gap-2">
+												<input
+													type="number"
+													step={0.0001}
+													min={0}
+													value={manualValue}
+													onChange={(event) =>
+														region === "US"
+															? setManualRiskFreeUs(
+																	event.target.value === "" ? "" : Number(event.target.value)
+																)
+															: setManualRiskFreeEu(
+																	event.target.value === "" ? "" : Number(event.target.value)
+																)
+													}
+													className="flex-1 rounded-lg border border-border-light px-3 py-2 text-sm bg-white"
+													placeholder="e.g. 4.50"
+													disabled={riskFreeLoading}
+												/>
+												<button
+													type="button"
+													onClick={() => handleSaveRiskFreeRate(region)}
+													disabled={riskFreeLoading}
+													className="px-3 py-2 rounded-lg border border-border-light bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+												>
+													Save
+												</button>
+											</div>
+										</div>
+									) : null}
+								</div>
+							);
+						})}
+					</div>
+					{riskFreeError ? <p className="text-xs text-rose-600 mt-4">{riskFreeError}</p> : null}
 				</div>
 
 				{isAdmin ? (

@@ -70,6 +70,7 @@ export async function PATCH(
     rate: merged.rate,
     dividendYield,
     ratio,
+    leverage: merged.leverage,
     marketPrice: merged.marketPrice,
   });
 
