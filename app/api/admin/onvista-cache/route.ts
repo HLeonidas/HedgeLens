@@ -25,7 +25,7 @@ export async function GET() {
   let cursor: number | string = 0;
 
   while (true) {
-    const result = await redis.scan(cursor, { match, count: 200 });
+    const result: unknown = await redis.scan(cursor, { match, count: 200 });
     if (Array.isArray(result)) {
       cursor = result[0] ?? 0;
       keys.push(...(result[1] ?? []));
