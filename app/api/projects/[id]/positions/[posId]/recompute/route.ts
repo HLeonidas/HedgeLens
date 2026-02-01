@@ -35,6 +35,9 @@ export async function POST(
     q: position.dividendYield ?? 0,
     sigma: position.volatility ?? 0,
     type: position.side,
+    ratio: position.ratio ?? 1,
+    fxRate: 1,
+    currency: position.currency,
   });
 
   const updated = await updatePosition(guard.user.id, resolvedParams.id, resolvedParams.posId, {

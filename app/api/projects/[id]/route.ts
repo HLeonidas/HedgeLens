@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireApiUser } from "@/lib/auth-guard";
+import { computeModelPricing } from "@/lib/pricing/modelPosition";
 import { deleteProject, getProject, listPositions, updateProject } from "@/lib/store/projects";
 import { validateUpdateProject } from "@/lib/validators";
 
@@ -59,10 +60,44 @@ export async function GET(
   }
 
   const positions = await listPositions(project.id);
-  const ratioSummary = computeRatioSummary(positions);
-  const valueSummary = computeValueSummary(positions);
+  const enrichedPositions = positions.map((position) => {
+    if (
+      position.side === "spot" ||
+      position.pricingMode !== "model" ||
+      position.underlyingPrice === undefined ||
+      position.strike === undefined ||
+      !position.expiry ||
+      position.volatility === undefined ||
+      position.rate === undefined
+    ) {
+      return position;
+    }
 
-  return NextResponse.json({ project, positions, ratioSummary, valueSummary });
+    const model = computeModelPricing({
+      S: position.underlyingPrice,
+      K: position.strike,
+      expiry: position.expiry,
+      r: position.rate,
+      q: position.dividendYield ?? 0,
+      sigma: position.volatility,
+      type: position.side,
+      ratio: position.ratio ?? 1,
+      fxRate: 1,
+      currency: position.currency,
+    });
+
+    return { ...position, computed: model.computed };
+  });
+
+  const ratioSummary = computeRatioSummary(enrichedPositions);
+  const valueSummary = computeValueSummary(enrichedPositions);
+
+  return NextResponse.json({
+    project,
+    positions: enrichedPositions,
+    ratioSummary,
+    valueSummary,
+  });
 }
 
 export async function DELETE(

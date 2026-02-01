@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { fetchHtmlWithCache } from "@/lib/onvista/fetch";
+import { buildOptionscheinInput } from "@/lib/onvista/optionscheinInput";
+import { parseCalculatorPage } from "@/lib/onvista/parseCalculator";
+import { parseDetailsPage } from "@/lib/onvista/parseDetails";
+import { resolveProductUrlBySearch } from "@/lib/onvista/resolve";
+import { getOnvistaImportForIsin, storeOnvistaImportForIsin } from "@/lib/onvista/storage";
+
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
@@ -15,38 +22,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid ISIN" }, { status: 400 });
   }
 
-  if (process.env.ISIN_PROVIDER_URL) {
-    const providerResponse = await fetch(process.env.ISIN_PROVIDER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.ISIN_PROVIDER_KEY
-          ? { Authorization: `Bearer ${process.env.ISIN_PROVIDER_KEY}` }
-          : {}),
-      },
-      body: JSON.stringify({ isin }),
-      cache: "no-store",
-    });
+  try {
+    let importData = await getOnvistaImportForIsin(isin);
+    if (!importData) {
+      const calculatorUrl = `https://www.onvista.de/derivate/optionsschein-rechner#${encodeURIComponent(isin)}`;
+      const calculatorResponse = await fetchHtmlWithCache(calculatorUrl);
+      const calculator = parseCalculatorPage(calculatorResponse.html, isin);
+      if (!calculator.productUrl) {
+        const resolved = await resolveProductUrlBySearch(isin);
+        if (resolved) {
+          calculator.productUrl = resolved;
+        } else {
+          return NextResponse.json({ error: "ISIN not found" }, { status: 404 });
+        }
+      }
 
-    if (!providerResponse.ok) {
-      return NextResponse.json({ error: "ISIN_PROVIDER_ERROR" }, { status: 502 });
+      const detailsResponse = await fetchHtmlWithCache(calculator.productUrl);
+      const details = parseDetailsPage(detailsResponse.html);
+
+      importData = {
+        calculator,
+        details,
+        sourceUrls: [calculatorUrl, calculator.productUrl],
+        scrapedAt: new Date().toISOString(),
+      };
+
+      await storeOnvistaImportForIsin(isin, importData);
     }
 
-    const payload = await providerResponse.json();
-    return NextResponse.json(payload);
-  }
+    const optionscheinInput = buildOptionscheinInput(importData);
+    const instrument = optionscheinInput.instrument;
+    const pricingInputs = optionscheinInput.pricingInputs;
 
-  return NextResponse.json({
-    isin,
-    name: "Sample Instrument",
-    issuer: "Demo Issuer",
-    type: "call",
-    underlying: "DAX",
-    strike: 19000,
-    expiry: new Date(new Date().getFullYear() + 1, 5, 19).toISOString().slice(0, 10),
-    currency: "EUR",
-    price: 2.34,
-    greeks: { delta: 0.42, theta: -0.03 },
-    fetchedAt: new Date().toISOString(),
-  });
+    return NextResponse.json({
+      isin: instrument.isin,
+      name: instrument.name ?? undefined,
+      type: instrument.warrantType,
+      underlying: instrument.underlyingSymbol,
+      strike: instrument.strike,
+      expiry: instrument.expiry,
+      currency: instrument.currency,
+      ratio: instrument.ratio,
+      price: pricingInputs.marketPrice ?? undefined,
+      fetchedAt: importData.scrapedAt,
+      source: "onvista",
+    });
+  } catch {
+    return NextResponse.json({ error: "ISIN lookup failed" }, { status: 502 });
+  }
 }

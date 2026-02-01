@@ -1068,7 +1068,13 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                   <input
                     value={lookupValue}
                     onChange={(event) => setLookupValue(event.target.value)}
-                    placeholder="DE000... oder ISIN"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleLookup();
+                      }
+                    }}
+                    placeholder="DE000..."
                     className="w-full bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none"
                   />
                 </div>

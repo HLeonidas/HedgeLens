@@ -36,6 +36,9 @@ export async function POST(
           q: dividendYield,
           sigma: input.volatility ?? 0,
           type: input.side,
+          ratio,
+          fxRate: 1,
+          currency: input.currency,
         })
       : null;
 

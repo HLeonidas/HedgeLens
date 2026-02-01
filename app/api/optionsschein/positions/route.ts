@@ -37,6 +37,9 @@ export async function GET() {
             q: position.dividendYield ?? 0,
             sigma: position.volatility,
             type: position.side as "call" | "put",
+            ratio: position.ratio ?? 1,
+            fxRate: 1,
+            currency: position.currency,
           });
           computed = model.computed;
         }

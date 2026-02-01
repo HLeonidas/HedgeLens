@@ -84,7 +84,6 @@ export const navSections: NavSection[] = [
 				icon: "calculate",
 				title: "Warrant Calculator",
 				subtitle: "Model-based warrant calculator",
-				isNotReleased: true,
 			},
 		],
 	},

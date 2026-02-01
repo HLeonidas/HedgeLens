@@ -2,9 +2,7 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 
 import { requireApiUser } from "@/lib/auth-guard";
-import { priceEuropeanCallPut } from "@/lib/pricing/blackScholes";
-import { greeks } from "@/lib/pricing/greeks";
-import { yearFraction } from "@/lib/pricing/utils";
+import { priceWarrant, type WarrantPayload } from "@/lib/warrantPricer";
 import { getPositionByIdForUser } from "@/lib/store/projects";
 
 export const runtime = "nodejs";
@@ -61,8 +59,13 @@ const requestSchema = z.object({
   referencePriceOverride: z.preprocess(toNumber, z.number().finite().min(0)).optional(),
 });
 
-function computeIntrinsicValue(type: "call" | "put", S: number, K: number) {
-  return Math.max(type === "call" ? S - K : K - S, 0);
+function toGermanDate(iso: string) {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return null;
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  return `${day}.${month}.${year}`;
 }
 
 export async function POST(request: Request) {
@@ -112,7 +115,6 @@ export async function POST(request: Request) {
 
   const outputs: ScenarioResult[] = scenarios.map((scenario) => {
     const valuationDate = scenario.valuationDate ?? null;
-    const valuation = valuationDate ? new Date(valuationDate) : null;
 
     if (
       !scenario.underlyingPrice ||
@@ -141,45 +143,45 @@ export async function POST(request: Request) {
       };
     }
 
-    const expiryDate = new Date(expiry);
-    const T = valuation ? yearFraction(valuation, expiryDate) : 0;
     const dividendYield = scenario.dividendYield ?? defaultDividendYield;
-    const intrinsic = computeIntrinsicValue(optionSide, scenario.underlyingPrice, strike);
-
-    const rawPrice =
-      T <= 0
-        ? intrinsic
-        : priceEuropeanCallPut({
-            S: scenario.underlyingPrice,
-            K: strike,
-            T,
-            r: scenario.rate,
-            q: dividendYield,
-            sigma: scenario.volatility,
-            type: optionSide,
-          });
-
-    const withRatio = rawPrice * ratio;
     const fxRate = scenario.fxRate ?? 1;
-    const fairValue = Number((withRatio * fxRate).toFixed(6));
-    const intrinsicValue = Number((intrinsic * ratio * fxRate).toFixed(6));
-    const timeValue = Number(Math.max(0, fairValue - intrinsicValue).toFixed(6));
+    const payload: WarrantPayload = {
+      details: {
+        stammdaten: {
+          basispreis: { raw: String(strike), value: strike },
+          bezugsverhältnis: { raw: String(ratio), value: ratio },
+          typ: { raw: optionSide.toUpperCase(), value: null },
+          währung: { raw: currency, value: null },
+        },
+        handelsdaten: {
+          "letzter handelstag": { raw: toGermanDate(expiry) ?? expiry, value: null },
+        },
+        volatilitaet: {
+          "implizite volatilität": {
+            raw: String(scenario.volatility),
+            value: scenario.volatility,
+          },
+        },
+      },
+    };
 
-    const greeksOutput =
-      T <= 0
-        ? { delta: 0, gamma: 0, theta: 0, vega: 0 }
-        : greeks({
-            S: scenario.underlyingPrice,
-            K: strike,
-            T,
-            r: scenario.rate,
-            q: dividendYield,
-            sigma: scenario.volatility,
-            type: optionSide,
-          });
+    const pricing = priceWarrant(payload, {
+      valuationDate,
+      spot: scenario.underlyingPrice,
+      dividendYield,
+      riskFreeRate: scenario.rate,
+      fx: { underlyingPerWarrant: 1 / fxRate },
+      underlyingCurrency: currency,
+    });
 
+    const fairValue = Number(pricing.results.fairValue.toFixed(6));
+    const intrinsicValue = Number(pricing.results.intrinsicValue.toFixed(6));
+    const timeValue = Number(pricing.results.timeValue.toFixed(6));
+    const greeksOutput = pricing.results.greeks;
+
+    const rawOptionPrice = fairValue / (ratio * fxRate);
     const breakEven =
-      optionSide === "call" ? strike + rawPrice / ratio : strike - rawPrice / ratio;
+      optionSide === "call" ? strike + rawOptionPrice : strike - rawOptionPrice;
     const premium = scenario.underlyingPrice
       ? (breakEven - scenario.underlyingPrice) / scenario.underlyingPrice
       : null;

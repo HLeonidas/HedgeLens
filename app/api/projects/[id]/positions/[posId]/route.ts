@@ -88,6 +88,9 @@ export async function PATCH(
           q: dividendYield,
           sigma: merged.volatility ?? 0,
           type: merged.side,
+          ratio,
+          fxRate: 1,
+          currency: merged.currency,
         })
       : null;
 

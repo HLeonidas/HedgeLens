@@ -1,7 +1,5 @@
-import { priceEuropeanCallPut } from "@/lib/pricing/blackScholes";
-import { greeks } from "@/lib/pricing/greeks";
 import { generateTimeValueCurve } from "@/lib/pricing/timeValueCurve";
-import { yearFraction } from "@/lib/pricing/utils";
+import { priceWarrant, type WarrantPayload } from "@/lib/warrantPricer";
 
 type ModelPricingInput = {
   S: number;
@@ -12,6 +10,9 @@ type ModelPricingInput = {
   sigma: number;
   type: "call" | "put";
   now?: Date;
+  ratio?: number;
+  fxRate?: number;
+  currency?: string;
 };
 
 type ComputedOutput = {
@@ -31,33 +32,42 @@ function round(value: number, decimals = 6) {
 
 export function computeModelPricing(input: ModelPricingInput) {
   const now = input.now ?? new Date();
-  const T = yearFraction(now, input.expiry);
+  const ratio = input.ratio ?? 1;
+  const fxRate = input.fxRate ?? 1;
+  const currency = input.currency ?? "EUR";
+  const valuationDate = now.toISOString().slice(0, 10);
+  const expiryRaw = toGermanDate(input.expiry) ?? input.expiry;
 
-  const fairValue = priceEuropeanCallPut({
-    S: input.S,
-    K: input.K,
-    T,
-    r: input.r,
-    q: input.q,
-    sigma: input.sigma,
-    type: input.type,
+  const payload: WarrantPayload = {
+    details: {
+      stammdaten: {
+        basispreis: { raw: String(input.K), value: input.K },
+        bezugsverhältnis: { raw: String(ratio), value: ratio },
+        typ: { raw: input.type.toUpperCase(), value: null },
+        währung: { raw: currency, value: null },
+      },
+      handelsdaten: {
+        "letzter handelstag": { raw: expiryRaw, value: null },
+      },
+      volatilitaet: {
+        "implizite volatilität": { raw: String(input.sigma), value: input.sigma },
+      },
+    },
+  };
+
+  const pricing = priceWarrant(payload, {
+    valuationDate,
+    spot: input.S,
+    dividendYield: input.q ?? 0,
+    riskFreeRate: input.r,
+    fx: { underlyingPerWarrant: 1 / fxRate },
+    underlyingCurrency: currency,
   });
 
-  const intrinsicValue = Math.max(
-    input.type === "call" ? input.S - input.K : input.K - input.S,
-    0
-  );
-  const timeValue = Math.max(0, fairValue - intrinsicValue);
-
-  const { delta, gamma, theta, vega } = greeks({
-    S: input.S,
-    K: input.K,
-    T,
-    r: input.r,
-    q: input.q,
-    sigma: input.sigma,
-    type: input.type,
-  });
+  const fairValue = pricing.results.fairValue;
+  const intrinsicValue = pricing.results.intrinsicValue;
+  const timeValue = pricing.results.timeValue;
+  const { delta, gamma, theta, vega } = pricing.results.greeks;
 
   const computed: ComputedOutput = {
     fairValue: round(fairValue),
@@ -82,4 +92,13 @@ export function computeModelPricing(input: ModelPricingInput) {
   });
 
   return { computed, timeValueCurve };
+}
+
+function toGermanDate(iso: string) {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return null;
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  return `${day}.${month}.${year}`;
 }
