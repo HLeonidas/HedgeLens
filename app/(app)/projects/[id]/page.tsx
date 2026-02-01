@@ -757,6 +757,10 @@ export default function ProjectDetailPage() {
 		setLookupOsLoading(false);
 		setLookupOsError(null);
 		setLookupOsInfo(null);
+		setSize((prev) => (Number.isFinite(prev) && prev > 0 ? prev : 1));
+		setEntryPrice((prev) =>
+			prev !== "" && Number.isFinite(Number(prev)) && Number(prev) > 0 ? prev : 1
+		);
 		try {
 			const response = await fetch("/api/isin/lookup", {
 				method: "POST",
@@ -933,6 +937,16 @@ export default function ProjectDetailPage() {
 				leverageValue !== undefined && Number.isFinite(leverageValue)
 					? leverageValue
 					: undefined;
+			const ratioValue =
+				positionAssetType === "options"
+					? ratio !== ""
+						? Number(ratio)
+						: lookupRatioRef.current ??
+						  parseGermanNumber(lookupOsInfo?.ratio ?? null) ??
+						  undefined
+					: undefined;
+			const normalizedRatio =
+				ratioValue !== undefined && Number.isFinite(ratioValue) ? ratioValue : undefined;
         const payload = {
           name: name.trim() || undefined,
           isin: isin.trim(),
@@ -956,11 +970,7 @@ export default function ProjectDetailPage() {
         dividendYield:
           normalizedPricingMode === "model" ? Number(dividendYieldPct || 0) / 100 : undefined,
         ratio:
-          positionAssetType === "options"
-						? ratio !== ""
-							? Number(ratio)
-							: lookupRatioRef.current ?? undefined
-						: undefined,
+          normalizedRatio,
 				leverage: normalizedLeverage,
       };
 
@@ -1637,7 +1647,19 @@ export default function ProjectDetailPage() {
 		if (!cleaned) return null;
 		const numeric = cleaned.replace(/[^\d,.\-]/g, "");
 		if (!numeric) return null;
-		const normalized = numeric.replace(/\./g, "").replace(",", ".");
+		let normalized = numeric;
+		if (numeric.includes(",") && numeric.includes(".")) {
+			normalized = numeric.replace(/\./g, "").replace(",", ".");
+		} else if (numeric.includes(",")) {
+			normalized = numeric.replace(/\./g, "").replace(",", ".");
+		} else if (numeric.includes(".")) {
+			const parts = numeric.split(".");
+			const last = parts[parts.length - 1] ?? "";
+			if (parts.length > 1 && last.length === 3) {
+				normalized = numeric.replace(/\./g, "");
+			}
+		}
+		normalized = normalized.replace(/,/g, "");
 		const parsed = Number(normalized);
 		return Number.isFinite(parsed) ? parsed : null;
 	}
@@ -2981,6 +3003,19 @@ export default function ProjectDetailPage() {
 										<button
 											type="button"
 											onClick={() => {
+												setPositionCreateMode("lookup");
+												setLookupSuccess(false);
+											}}
+											className={`rounded-full border px-3 py-1 text-xs font-semibold ${positionCreateMode === "lookup"
+													? "border-slate-900 bg-slate-900 text-white"
+													: "border-slate-200 bg-white text-slate-600"
+												}`}
+										>
+											ISIN
+										</button>
+										<button
+											type="button"
+											onClick={() => {
 												setPositionCreateMode("manual");
 												setLookupSuccess(false);
 											}}
@@ -2991,19 +3026,6 @@ export default function ProjectDetailPage() {
 										>
 											Manual
 										</button>
-										<button
-											type="button"
-											onClick={() => {
-												setPositionCreateMode("lookup");
-												setLookupSuccess(false);
-											}}
-											className={`rounded-full border px-3 py-1 text-xs font-semibold ${positionCreateMode === "lookup"
-													? "border-slate-900 bg-slate-900 text-white"
-													: "border-slate-200 bg-white text-slate-600"
-												}`}
-										>
-											WKN / ISIN
-										</button>
 									</div>
 								) : null}
 							</div>
@@ -3013,7 +3035,7 @@ export default function ProjectDetailPage() {
 							<div className="rounded-xl border border-border-light bg-slate-50/70 p-4 space-y-3">
 								<div className="flex items-center justify-between">
 									<label className="text-xs font-bold uppercase text-slate-500">
-										WKN oder ISIN
+										ISIN
 									</label>
 									<span className="text-[10px] text-slate-400">Lookup</span>
 								</div>
@@ -3025,7 +3047,7 @@ export default function ProjectDetailPage() {
 											setLookupSuccess(false);
 										}}
 										className="flex-1 rounded-lg border border-border-light px-4 py-3 text-sm bg-white"
-										placeholder="z.B. DE000... oder WKN"
+										placeholder="z.B. DE000..."
 										disabled={lookupLoading}
 									/>
 									<button
@@ -3135,7 +3157,7 @@ export default function ProjectDetailPage() {
 							showLookupOnlyFields ? (
 								<div className="grid gap-4 md:grid-cols-2">
 									<div>
-										<label className="text-xs font-bold uppercase text-slate-500">Size</label>
+										<label className="text-xs font-bold uppercase text-slate-500">Shares</label>
 										<input
 											type="number"
 											min={1}
@@ -3219,7 +3241,7 @@ export default function ProjectDetailPage() {
 							) : null}
 							<div>
 								<label className="text-xs font-bold uppercase text-slate-500">
-									{positionAssetType === "spot" ? "Shares" : "Size"}
+									Shares
 								</label>
 								<input
 									type="number"
