@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { getRouteMeta } from "./nav";
 
@@ -214,7 +215,25 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
 	return (
 		<header className="sticky top-0 z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 lg:px-8 py-3 sm:py-0 sm:h-[75px] bg-surface-light dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800">
-			<div className="flex items-center gap-3 sm:w-1/4">
+			<div className="flex items-center justify-between sm:hidden">
+				<Link href="/" className="flex items-center gap-3">
+					<div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-sm">
+						<span className="material-symbols-outlined text-sm">insights</span>
+					</div>
+					<span className="font-bold text-lg tracking-tight text-slate-900 dark:text-slate-100">
+						HedgeLens
+					</span>
+				</Link>
+				<button
+					className="inline-flex items-center justify-center size-9 rounded-md border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+					type="button"
+					aria-label="Toggle sidebar"
+					onClick={onToggleSidebar}
+				>
+					<span className="material-symbols-outlined text-lg">menu</span>
+				</button>
+			</div>
+			<div className="hidden sm:flex items-center gap-3 sm:w-1/4">
 				<button
 					className="lg:hidden inline-flex items-center justify-center size-9 rounded-md border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
 					type="button"
@@ -223,18 +242,24 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 				>
 					<span className="material-symbols-outlined text-lg">menu</span>
 				</button>
-				<nav className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-500">
+				<nav className="flex min-w-0 flex-col gap-1 text-xs sm:flex-row sm:items-center sm:gap-2 sm:text-sm font-semibold text-slate-500">
 					{sectionLabel ? (
 						<>
-							<span className="uppercase tracking-wider text-slate-400">{sectionLabel}</span>
-							<span className="text-slate-300 dark:text-slate-600">/</span>
+							<span className="hidden sm:inline uppercase tracking-wider text-slate-400">
+								{sectionLabel}
+							</span>
+							<span className="hidden sm:inline text-slate-300 dark:text-slate-600">/</span>
 						</>
 					) : null}
-					<span className="text-slate-900 dark:text-slate-100">{title}</span>
+					<span className="text-slate-900 dark:text-slate-100 truncate max-w-[220px] sm:max-w-none">
+						{title}
+					</span>
 					{detailLabel ? (
 						<>
-							<span className="text-slate-300 dark:text-slate-600">/</span>
-							<span className="text-slate-500">{detailLabel}</span>
+							<span className="hidden sm:inline text-slate-300 dark:text-slate-600">/</span>
+							<span className="text-slate-500 truncate max-w-[220px] sm:max-w-none">
+								{detailLabel}
+							</span>
 						</>
 					) : null}
 				</nav>
@@ -243,7 +268,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 			<div className="w-full sm:flex-1 sm:flex sm:justify-center">
 				<form className="relative w-full sm:w-[520px]" onSubmit={handleSubmit}>
           <div
-            className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-100/80 px-5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/25"
+            className="flex items-center gap-3 rounded-2xl sm:rounded-full border border-slate-200 bg-slate-100/80 px-4 sm:px-5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/25"
             onMouseDown={(event) => {
               event.preventDefault();
               searchInputRef.current?.focus();

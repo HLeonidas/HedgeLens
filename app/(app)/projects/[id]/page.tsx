@@ -1817,7 +1817,7 @@ export default function ProjectDetailPage() {
 			<div className="max-w-7xl mx-auto flex flex-col gap-6">
 				<div className="flex flex-col gap-4">
 					<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-						<div className="flex items-center gap-4">
+						<div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
 							{(() => {
 								const logoUrl = getMassiveLogo(project.massiveTickerInfo?.payload ?? null);
 								const baseClasses =
@@ -1852,14 +1852,16 @@ export default function ProjectDetailPage() {
 									</div>
 								);
 							})()}
-							<div>
-								<h2 className="text-3xl font-black text-slate-900 tracking-tight">
+							<div className="w-full">
+								<h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
 									{project.name}
 								</h2>
 								{project.description ? (
-									<p className="text-sm text-slate-500 mt-1">{project.description}</p>
+									<p className="text-sm text-slate-500 mt-2 max-w-3xl">
+										{project.description}
+									</p>
 								) : (
-									<p className="text-sm text-slate-500 mt-1">
+									<p className="text-sm text-slate-500 mt-2">
 										Strategy container for warrant positions and analytics.
 									</p>
 								)}
