@@ -281,7 +281,7 @@ export default function SettingsPage() {
 
 	return (
 		<div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
-			<div className="mx-auto w-full max-w-6xl flex flex-col gap-6">
+			<div className="mx-auto w-full max-w-6xl flex flex-col gap-5">
 				<div className="flex items-center justify-between">
 					<div>
 						<h2 className="text-3xl font-black text-slate-900 tracking-tight">Settings</h2>
@@ -292,15 +292,12 @@ export default function SettingsPage() {
 				</div>
 
 				<div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-					<div className="mb-5">
+					<div className="mb-4">
 						<h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
 							Appearance
 						</h3>
-						<p className="text-xs text-slate-500 mt-1 font-semibold">
-							How would you like the dashboard to look?
-						</p>
 					</div>
-					<div className="grid gap-4 sm:grid-cols-2">
+					<div className="grid gap-3 sm:grid-cols-2">
 						<button
 							type="button"
 							onClick={() => handleThemeChange("light")}
@@ -334,149 +331,111 @@ export default function SettingsPage() {
 					</div>
 				</div>
 
-				<div className="grid gap-6 lg:grid-cols-3">
-					<div className="lg:col-span-2 p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-						<div className="flex flex-wrap items-center gap-4 mb-5">
-							<div className="flex-1">
-								<h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-									Exchange Rates
-								</h3>
-								<p className="text-xs text-slate-500 mt-1 font-semibold">
-									Live conversion data for global transactions.
-								</p>
-							</div>
-							{isAdmin ? (
-								<div className="flex items-center gap-2">
-									<button
-										type="button"
-										onClick={() => setShowManualFxModal(true)}
-										className="inline-flex items-center gap-2 rounded-full border border-border-light bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-									>
-										<span className="material-symbols-outlined text-[14px]">edit</span>
-										Set manually
-									</button>
-									<button
-										type="button"
-										onClick={handleRefreshFx}
-										disabled={fxLoading}
-										className="inline-flex items-center gap-2 rounded-full border border-border-light bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-									>
-										<span className="material-symbols-outlined text-[14px]">
-											{fxLoading ? "sync" : "update"}
-										</span>
-										{fxLoading ? "Refreshing..." : "Refresh Data"}
-									</button>
-								</div>
-							) : null}
-						</div>
-						<div className="mb-4 text-xs text-slate-500">
-							{fxRate
-								? `Last update: ${new Date(fxRate.fetchedAt).toLocaleString()} · ${fxRate.source === "manual" ? "Manual" : "Alpha Vantage"
-								}`
-								: "No FX data loaded yet."}
-						</div>
-						<div className="grid gap-4 md:grid-cols-2">
-							<div className="rounded-2xl border border-border-light bg-blue-50/70 p-4">
-								<div className="flex items-center justify-between text-xs uppercase text-blue-600 font-semibold">
-									<span>EUR → USD</span>
-									<span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm">
-										<span className="material-symbols-outlined text-blue-600 text-base">
-											trending_up
-										</span>
-									</span>
-								</div>
-								<p className="mt-2 text-2xl font-bold text-slate-900">
-									{fxRate ? fxRate.rate.toFixed(4) : "—"}
-								</p>
-							</div>
-							<div className="rounded-2xl border border-border-light bg-white p-4">
-								<div className="flex items-center justify-between text-xs uppercase text-slate-500 font-semibold">
-									<span>USD → EUR</span>
-									<span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100">
-										<span className="material-symbols-outlined text-slate-500 text-base">
-											trending_down
-										</span>
-									</span>
-								</div>
-								<p className="mt-2 text-2xl font-bold text-slate-900">
-									{fxRate ? (1 / fxRate.rate).toFixed(4) : "—"}
-								</p>
-							</div>
-						</div>
-						{fxError ? <p className="text-xs text-rose-600 mt-4">{fxError}</p> : null}
-					</div>
-
-					<div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-						<div className="mb-8">
+				<div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
+					<div className="flex flex-wrap items-center justify-between gap-4">
+						<div>
 							<h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-								Preferred currency
+								Market Data
 							</h3>
 							<p className="text-xs text-slate-500 mt-1 font-semibold">
-								Choose your main display currency.
+								Exchange rates and display currency.
 							</p>
 						</div>
-						<div>
-							<div className="flex items-stretch gap-4 rounded-2xl border border-border-light bg-white p-4 shadow-sm">
-								<button
-									type="button"
-									onClick={() => {
-										const el = preferredCurrencyRef.current;
-										if (!el) return;
-                const picker = (el as HTMLSelectElement & { showPicker?: () => void }).showPicker;
-                if (picker) {
-                  picker();
-                } else {
-                  el.focus();
-                  el.click();
-                }
-									}}
-									className="inline-flex w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-inner"
-									aria-label="Open currency selector"
-								>
-									<span className="text-xl font-semibold">{currencySymbol}</span>
-								</button>
-								<div className="flex flex-1 flex-col justify-center">
-									<label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-										Preferred currency
-									</label>
-									<select
-										ref={preferredCurrencyRef}
-										value={preferredCurrency}
-										onChange={(event) => handlePreferredCurrencyChange(event.target.value)}
-										disabled={prefSaving}
-										className="mt-2 w-full rounded-xl border border-border-light px-4 py-2 text-sm font-semibold bg-slate-50 uppercase disabled:opacity-60"
-									>
-										<option value="EUR">EUR</option>
-										<option value="USD">USD</option>
-										<option value="GBP">GBP</option>
-										<option value="CHF">CHF</option>
-										<option value="JPY">JPY</option>
-										<option value="AUD">AUD</option>
-										<option value="CAD">CAD</option>
-										<option value="SEK">SEK</option>
-										<option value="NOK">NOK</option>
-										<option value="DKK">DKK</option>
-									</select>
-								</div>
-							</div>
-							{prefError ? <p className="mt-3 text-xs text-rose-600">{prefError}</p> : null}
+						<div className="flex items-center gap-2 rounded-full border border-border-light bg-slate-50 px-3 py-1.5">
+							<span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+								Preferred
+							</span>
+							<select
+								ref={preferredCurrencyRef}
+								value={preferredCurrency}
+								onChange={(event) => handlePreferredCurrencyChange(event.target.value)}
+								disabled={prefSaving}
+								className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+							>
+								<option value="EUR">EUR</option>
+								<option value="USD">USD</option>
+								<option value="GBP">GBP</option>
+								<option value="CHF">CHF</option>
+								<option value="JPY">JPY</option>
+								<option value="AUD">AUD</option>
+								<option value="CAD">CAD</option>
+								<option value="SEK">SEK</option>
+								<option value="NOK">NOK</option>
+								<option value="DKK">DKK</option>
+							</select>
 						</div>
 					</div>
-
+					<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+						<div className="text-[11px] text-slate-500">
+							{fxRate
+								? `Last update: ${new Date(fxRate.fetchedAt).toLocaleString()} · ${fxRate.source === "manual" ? "Manual" : "Alpha Vantage"}`
+								: "No FX data loaded yet."}
+						</div>
+						{isAdmin ? (
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									onClick={() => setShowManualFxModal(true)}
+									className="inline-flex items-center gap-2 rounded-full border border-border-light bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+								>
+									<span className="material-symbols-outlined text-[14px]">edit</span>
+									Set manually
+								</button>
+								<button
+									type="button"
+									onClick={handleRefreshFx}
+									disabled={fxLoading}
+									className="inline-flex items-center gap-2 rounded-full border border-border-light bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+								>
+									<span className="material-symbols-outlined text-[14px]">
+										{fxLoading ? "sync" : "update"}
+									</span>
+									{fxLoading ? "Refreshing..." : "Refresh"}
+								</button>
+							</div>
+						) : null}
+					</div>
+					<div className="mt-4 grid gap-3 sm:grid-cols-2">
+						<div className="rounded-2xl bg-slate-50 px-4 py-3">
+							<div className="flex items-center justify-between text-xs uppercase text-slate-500 font-semibold">
+								<span>EUR → USD</span>
+								<span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white">
+									<span className="material-symbols-outlined text-slate-500 text-[14px]">
+										trending_up
+									</span>
+								</span>
+							</div>
+							<p className="mt-1 text-2xl font-bold text-slate-900">
+								{fxRate ? fxRate.rate.toFixed(4) : "—"}
+							</p>
+						</div>
+						<div className="rounded-2xl bg-slate-50 px-4 py-3">
+							<div className="flex items-center justify-between text-xs uppercase text-slate-500 font-semibold">
+								<span>USD → EUR</span>
+								<span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white">
+									<span className="material-symbols-outlined text-slate-500 text-[14px]">
+										trending_down
+									</span>
+								</span>
+							</div>
+							<p className="mt-1 text-2xl font-bold text-slate-900">
+								{fxRate ? (1 / fxRate.rate).toFixed(4) : "—"}
+							</p>
+						</div>
+					</div>
+					{prefError ? <p className="mt-3 text-xs text-rose-600">{prefError}</p> : null}
+					{fxError ? <p className="text-xs text-rose-600 mt-3">{fxError}</p> : null}
 				</div>
 
 				<div className="p-6 rounded-2xl border border-border-light bg-white shadow-sm">
-					<div className="flex flex-wrap items-center gap-4 mb-5">
+					<div className="flex flex-wrap items-center gap-4 mb-4">
 						<div className="flex-1">
 							<h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
 								Risk-Free Rates
 							</h3>
-							<p className="text-xs text-slate-500 mt-1 font-semibold">
-								Reference rates for option pricing (US & EU).
-							</p>
 						</div>
 					</div>
-					<div className="grid gap-4 md:grid-cols-2">
+					<div className="grid gap-3 md:grid-cols-2">
 						{(["US", "EU"] as const).map((region) => {
 							const rate = riskFreeRates[region];
 							const display = rate ? (rate.rate * 100).toFixed(4) : "—";
@@ -484,7 +443,7 @@ export default function SettingsPage() {
 							return (
 								<div
 									key={region}
-									className="rounded-2xl border border-border-light bg-slate-50 p-4"
+									className="rounded-2xl bg-slate-50 px-4 py-3"
 								>
 									<div className="flex items-start justify-between gap-3">
 										<div>
@@ -494,7 +453,7 @@ export default function SettingsPage() {
 											<p className="mt-1 text-2xl font-bold text-slate-900">
 												{display}%
 											</p>
-											<p className="text-[11px] text-slate-400 mt-1">
+											<p className="text-[10px] text-slate-400 mt-1">
 												{rate
 													? `Last update: ${new Date(rate.fetchedAt).toLocaleString()} · Manual`
 													: "No data loaded yet."}

@@ -54,8 +54,8 @@ export default function OnvistaCachePage() {
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-background-light p-4 sm:p-6 lg:p-8">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <div className="rounded-2xl border border-border-light bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="p-1">
+          <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-border-light">
             <div>
               <button
                 type="button"
@@ -70,45 +70,50 @@ export default function OnvistaCachePage() {
                 Cached ISIN imports (TTL: 1 day). Admin only.
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-lg border border-border-light px-3 py-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 flex-1 min-w-[220px] rounded-lg border border-border-light px-3 py-2 text-xs text-slate-500">
               <span className="material-symbols-outlined text-sm">search</span>
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Filter by ISIN..."
-                className="w-48 bg-transparent outline-none text-xs font-semibold text-slate-700"
+                className="w-full bg-transparent outline-none text-xs font-semibold text-slate-700"
               />
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border-light bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border-light flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-              Cached Entries
-            </h2>
-            <span className="text-xs text-slate-500">{filtered.length} total</span>
-          </div>
-
-          {loading ? (
-            <div className="p-6 text-sm text-slate-500">Loading cache…</div>
-          ) : error ? (
-            <div className="p-6 text-sm text-rose-600">{error}</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">No cached ISINs yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+        <div className="rounded-xl border border-border-light bg-white shadow-sm overflow-hidden mt-4">
+          <div className="overflow-x-auto overflow-y-visible">
+            <table className="w-full min-w-[720px] text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 text-slate-600 text-[11px] font-bold uppercase tracking-wider border-b border-border-light">
+                  <th className="px-4 py-3">ISIN</th>
+                  <th className="px-4 py-3">Scraped At</th>
+                  <th className="px-4 py-3">Sources</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-light">
+                {loading ? (
                   <tr>
-                    <th className="px-4 py-3 text-left">ISIN</th>
-                    <th className="px-4 py-3 text-left">Scraped At</th>
-                    <th className="px-4 py-3 text-left">Sources</th>
+                    <td className="px-4 py-4 text-slate-500" colSpan={3}>
+                      Loading cache...
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border-light">
-                  {filtered.map((entry) => (
-                    <tr key={entry.isin} className="hover:bg-slate-50/70">
+                ) : error ? (
+                  <tr>
+                    <td className="px-4 py-4 text-rose-600" colSpan={3}>
+                      {error}
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-slate-500" colSpan={3}>
+                      No cached ISINs yet.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((entry) => (
+                    <tr key={entry.isin} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-4 py-3 font-mono text-slate-700">{entry.isin}</td>
                       <td className="px-4 py-3 text-slate-600">
                         {new Date(entry.scrapedAt).toLocaleString()}
@@ -117,11 +122,11 @@ export default function OnvistaCachePage() {
                         {entry.sourceUrls.length > 0 ? entry.sourceUrls.length : "—"}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
