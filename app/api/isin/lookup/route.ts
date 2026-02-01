@@ -64,6 +64,12 @@ export async function POST(request: Request) {
       currency: instrument.currency,
       ratio: instrument.ratio,
       price: pricingInputs.marketPrice ?? undefined,
+      underlyingPrice: pricingInputs.underlyingPrice ?? undefined,
+      volatility: pricingInputs.volatility ?? undefined,
+      rate: pricingInputs.rate ?? undefined,
+      dividendYield: pricingInputs.dividendYield ?? undefined,
+      fxRate: pricingInputs.fxRate ?? undefined,
+      valuationDate: pricingInputs.valuationDate ?? undefined,
       fetchedAt: importData.scrapedAt,
       source: "onvista",
     });

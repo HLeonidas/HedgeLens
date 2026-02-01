@@ -269,6 +269,8 @@ export default function ProjectDetailPage() {
 
 	const isLookupMode =
 		!editingPositionId && positionCreateMode === "lookup" && positionAssetType === "options";
+	const isEditingIsinLocked =
+		Boolean(editingPositionId) && positionAssetType === "options" && Boolean(isin.trim());
 	const showLookupOnlyFields = isLookupMode && lookupSuccess;
 	const payloadJson = useMemo(
 		() => (payloadModal?.payload ? JSON.stringify(payloadModal.payload, null, 2) : ""),
@@ -3205,6 +3207,44 @@ export default function ProjectDetailPage() {
 									</div>
 								</div>
 							) : null
+						) : isEditingIsinLocked ? (
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="md:col-span-2">
+									<label className="text-xs font-bold uppercase text-slate-500">Name</label>
+									<input
+										value={name}
+										onChange={(event) => setName(event.target.value)}
+										className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+										placeholder="Optional"
+									/>
+								</div>
+								<div>
+									<label className="text-xs font-bold uppercase text-slate-500">Shares</label>
+									<input
+										type="number"
+										min={1}
+										step={1}
+										value={size}
+										onChange={(event) => setSize(Number(event.target.value))}
+										className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+									/>
+								</div>
+								<div>
+									<label className="text-xs font-bold uppercase text-slate-500">
+										Entry price
+									</label>
+									<input
+										type="number"
+										min={0}
+										step={0.01}
+										value={entryPrice}
+										onChange={(event) =>
+											setEntryPrice(event.target.value === "" ? "" : Number(event.target.value))
+										}
+										className="mt-2 w-full rounded-lg border border-border-light px-4 py-3 text-sm bg-slate-50"
+									/>
+								</div>
+							</div>
 						) : (
 							<>
 								<div className="grid gap-4 md:grid-cols-2">

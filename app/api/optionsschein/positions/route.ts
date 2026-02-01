@@ -17,6 +17,11 @@ export async function GET() {
   const positions = await Promise.all(
     projects.map(async (project) => {
       const items = await listPositions(project.id);
+      const logoUrl = getMassiveIcon(project.massiveTickerInfo?.payload ?? null);
+      const underlyingName =
+        project.tickerInfo?.overview?.Name ?? project.underlyingSymbol ?? project.name;
+      const projectSymbol =
+        project.tickerInfo?.symbol ?? project.underlyingSymbol ?? null;
       return items.map((position) => {
         let computed = position.computed;
 
@@ -50,6 +55,9 @@ export async function GET() {
           projectId: project.id,
           projectName: project.name,
           baseCurrency: project.baseCurrency,
+          projectLogoUrl: logoUrl ?? null,
+          projectUnderlyingName: underlyingName ?? null,
+          underlyingSymbol: position.underlyingSymbol ?? projectSymbol ?? undefined,
         };
       });
     })
@@ -87,6 +95,21 @@ export async function GET() {
   ];
 
   return NextResponse.json({ positions: combined });
+}
+
+function getMassiveIcon(payload?: Record<string, unknown> | null) {
+  if (!payload) return null;
+  const results =
+    (payload as Record<string, unknown>).results &&
+    typeof (payload as Record<string, unknown>).results === "object"
+      ? ((payload as Record<string, unknown>).results as Record<string, unknown>)
+      : payload;
+  const branding = (results as { branding?: Record<string, unknown> }).branding;
+  const iconUrl = branding?.icon_url || branding?.logo_url;
+  if (typeof iconUrl === "string" && iconUrl.trim()) return iconUrl;
+  if (typeof (results as any).icon_url === "string") return (results as any).icon_url;
+  if (typeof (results as any).logo_url === "string") return (results as any).logo_url;
+  return null;
 }
 
 export async function POST(request: Request) {

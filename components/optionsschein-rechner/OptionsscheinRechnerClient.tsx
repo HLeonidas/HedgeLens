@@ -7,7 +7,6 @@ import Highcharts from "highcharts";
 
 import { InfoCallout } from "@/components/optionsschein-rechner/InfoCallout";
 import { KpiTilesRow } from "@/components/optionsschein-rechner/KpiTilesRow";
-import { ScenarioComparisonTable } from "@/components/optionsschein-rechner/ScenarioComparisonTable";
 
 const scenarioLimit = 5;
 
@@ -16,6 +15,8 @@ type PositionItem = {
   projectId: string | null;
   projectName: string;
   baseCurrency: string;
+  projectLogoUrl?: string | null;
+  projectUnderlyingName?: string | null;
   name?: string;
   isin: string;
   side: "put" | "call";
@@ -112,6 +113,12 @@ type LookupResponse = {
   ratio?: number;
   underlying?: string;
   price?: number;
+  underlyingPrice?: number;
+  volatility?: number;
+  rate?: number;
+  dividendYield?: number;
+  fxRate?: number;
+  valuationDate?: string;
 };
 
 type ProjectSummary = {
@@ -191,6 +198,14 @@ function buildCurveDates(startDate: string, endDate: string, points = 6) {
   return Array.from(new Set(dates));
 }
 
+function withMassiveProxy(url: string) {
+  try {
+    return `/api/massive/logo?url=${encodeURIComponent(url)}`;
+  } catch {
+    return url;
+  }
+}
+
 export function OptionsscheinRechnerClient({ initialInstrumentId }: OptionsscheinRechnerClientProps) {
   const router = useRouter();
 
@@ -228,6 +243,17 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       return text.includes(query);
     });
   }, [positions, search]);
+
+  const isinProjectMatches = useMemo(() => {
+    if (selectedInstrument?.kind !== "lookup") return [];
+    const isin = selectedInstrument.data.isin.trim().toUpperCase();
+    if (!isin) return [];
+    return positions.filter(
+      (position) =>
+        position.projectId &&
+        position.isin.trim().toUpperCase() === isin
+    );
+  }, [positions, selectedInstrument]);
 
   const statusQuoResult = results[0] ?? null;
   const currency =
@@ -328,7 +354,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
     if (baseInputs.underlyingPrice === "") missing.push("Underlying price");
     if (baseInputs.volatilityPct === "") missing.push("Volatility");
     if (baseInputs.ratePct === "") missing.push("Rate");
-    if (!baseInputs.valuationDate) missing.push("Bewertungsstichtag");
+    if (!baseInputs.valuationDate) missing.push("Valuation date");
     return missing;
   }, [baseInputs, selectedInstrument]);
 
@@ -357,7 +383,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
   }, []);
 
   const hydrateInputs = useCallback(
-    (instrument: SelectedInstrument) => {
+    (instrument: SelectedInstrument, overrideInputs?: Partial<BaseInputs>) => {
       const today = new Date().toISOString().slice(0, 10);
 
       if (instrument.kind === "position") {
@@ -380,6 +406,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
           dividendYieldPct: "",
           fxRate: "",
           valuationDate: today,
+          ...overrideInputs,
         });
       }
 
@@ -403,12 +430,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       const data = (await response.json().catch(() => null)) as PositionListResponse | null;
 
       if (!response.ok || !data) {
-        throw new Error("Positions konnten nicht geladen werden.");
+        throw new Error("Positions could not be loaded.");
       }
 
       setPositions(data.positions ?? []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Positions konnten nicht geladen werden.";
+      const message = err instanceof Error ? err.message : "Positions could not be loaded.";
       setError(message);
     } finally {
       setPositionsLoaded(true);
@@ -462,7 +489,28 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       };
 
       setSelectedInstrument({ kind: "lookup", data: instrument });
-      hydrateInputs({ kind: "lookup", data: instrument });
+      const lookupInputs: Partial<BaseInputs> = {
+        underlyingPrice:
+          payload.underlyingPrice === null || payload.underlyingPrice === undefined
+            ? ""
+            : Number(payload.underlyingPrice),
+        ratePct:
+          payload.rate === null || payload.rate === undefined
+            ? ""
+            : Number((payload.rate * 100).toFixed(4)),
+        volatilityPct:
+          payload.volatility === null || payload.volatility === undefined
+            ? ""
+            : Number((payload.volatility * 100).toFixed(4)),
+        dividendYieldPct:
+          payload.dividendYield === null || payload.dividendYield === undefined
+            ? ""
+            : Number((payload.dividendYield * 100).toFixed(4)),
+        fxRate:
+          payload.fxRate === null || payload.fxRate === undefined ? "" : Number(payload.fxRate),
+        valuationDate: payload.valuationDate ?? undefined,
+      };
+      hydrateInputs({ kind: "lookup", data: instrument }, lookupInputs);
       if (!options?.skipNav) {
         router.push(`/analysis/optionsschein-rechner/${encodeURIComponent(instrument.isin)}`);
       }
@@ -753,7 +801,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       const position = selectedInstrument.data;
       const missing = [!position.strike && "Strike", !position.expiry && "Expiry", !position.ratio && "Ratio"].filter(Boolean);
 
-      setWarning(missing.length ? `Fehlende Stammdaten: ${missing.join(", ")}.` : null);
+      setWarning(missing.length ? `Missing base data: ${missing.join(", ")}.` : null);
     } else {
       setWarning(null);
     }
@@ -1056,7 +1104,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
 
             <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                ISIN manuell eingeben
+                Enter ISIN manually
               </h2>
               <p className="text-xs text-slate-500 mt-2">
                 Ad-hoc analysis without a project. Data is not saved.
@@ -1110,183 +1158,335 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Warrant Calculator
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Analysemodus:{" "}
+            <p className="text-base text-slate-500 mt-1">
               {selectedInstrument.kind === "position"
-                ? selectedInstrument.data.projectId
-                  ? "Project"
-                  : "Standalone"
-                : "Ad-hoc"}
+                ? selectedInstrument.data.name ?? selectedInstrument.data.isin
+                : selectedInstrument.data.name ?? selectedInstrument.data.isin}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleResetSelection}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300"
-          >
-            <span className="material-symbols-outlined text-base">swap_horiz</span>
-            Instrument wechseln
-          </button>
+          {selectedInstrument.kind === "position" && selectedInstrument.data.projectId ? (
+            <button
+              type="button"
+              onClick={() => router.push(`/projects/${selectedInstrument.data.projectId}`)}
+              className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-2 text-[11px] text-slate-500 hover:border-slate-300 hover:shadow-sm transition"
+              aria-label={`Open project ${selectedInstrument.data.projectName}`}
+            >
+              {selectedInstrument.data.projectLogoUrl ? (
+                <img
+                  src={withMassiveProxy(selectedInstrument.data.projectLogoUrl)}
+                  alt={selectedInstrument.data.projectUnderlyingName ?? selectedInstrument.data.projectName}
+                  className="h-6 w-6 rounded-full border border-slate-100 object-contain bg-white"
+                />
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-[10px] font-semibold">
+                  {(selectedInstrument.data.projectUnderlyingName ?? selectedInstrument.data.projectName ?? "OS")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </div>
+              )}
+              <div className="leading-tight text-left">
+                <div className="text-[11px] font-semibold text-slate-700">
+                  {selectedInstrument.data.projectUnderlyingName ?? selectedInstrument.data.projectName}
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {selectedInstrument.data.underlyingSymbol ?? selectedInstrument.data.projectName}
+                </div>
+              </div>
+            </button>
+          ) : selectedInstrument.kind === "lookup" && isinProjectMatches.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-2 text-[11px] text-slate-500">
+              <span className="uppercase tracking-wider text-[10px] text-slate-400">
+                Already in
+              </span>
+              {isinProjectMatches.map((match) => {
+                const logoUrl = match.projectLogoUrl ? withMassiveProxy(match.projectLogoUrl) : null;
+                return (
+                  <button
+                    key={match.id}
+                    type="button"
+                    onClick={() => {
+                      if (match.projectId) {
+                        router.push(`/projects/${match.projectId}`);
+                      }
+                    }}
+                    className="flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-2 py-1"
+                    aria-label={`Open project ${match.projectName}`}
+                  >
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={match.projectUnderlyingName ?? match.projectName}
+                        className="h-5 w-5 rounded-full border border-slate-100 object-contain bg-white"
+                      />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-[9px] font-semibold">
+                        {(match.projectUnderlyingName ?? match.projectName ?? "OS")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                    )}
+                    <div className="leading-tight text-left">
+                      <div className="text-[11px] font-semibold text-slate-700">
+                        {match.projectUnderlyingName ?? match.projectName}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {match.underlyingSymbol ?? match.projectName}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
-        <div className="grid gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-xs text-slate-600">
-          {selectedInstrument.kind === "position" ? (
-            <>
-              <div>
-                <span className="font-semibold text-slate-700">{selectedInstrument.data.isin}</span>
-                <span className="text-slate-400"> · {selectedInstrument.data.projectName}</span>
-              </div>
-              <div>
-                {selectedInstrument.data.side.toUpperCase()} · Strike{" "}
-                {selectedInstrument.data.strike ?? "—"} · Expiry{" "}
-                {selectedInstrument.data.expiry ?? "—"}
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <span className="font-semibold text-slate-700">
-                  {selectedInstrument.data.name ?? selectedInstrument.data.isin}
-                </span>
-              </div>
-              <div>
-                {selectedInstrument.data.type.toUpperCase()} · Strike {selectedInstrument.data.strike} ·
-                Expiry {selectedInstrument.data.expiry}
-              </div>
-            </>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-          <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
-            Referenzkurs: {referenceDisplay === null ? "—" : referenceDisplay.toFixed(4)} {currency}
-          </span>
-          {loading ? (
+        {loading ? (
+          <div className="flex flex-wrap gap-3 text-xs text-slate-500">
             <span className="rounded-full border border-slate-200/70 bg-slate-50 px-3 py-1">
               Calculation running...
             </span>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         <KpiTilesRow sections={metricsSections} />
 
-        <details className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm" open>
-          <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-            Details & Modellparameter
-          </summary>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="text-xs font-semibold text-slate-500">
-              Basiswertkurs
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={baseInputs.underlyingPrice}
-                onChange={(event) =>
-                  updateBaseInput(
-                    "underlyingPrice",
-                    event.target.value === "" ? "" : Number(event.target.value)
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
-              />
-            </label>
-            <label className="text-xs font-semibold text-slate-500">
-              Volatility (%)
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={baseInputs.volatilityPct}
-                onChange={(event) =>
-                  updateBaseInput(
-                    "volatilityPct",
-                    event.target.value === "" ? "" : Number(event.target.value)
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
-              />
-            </label>
-            <label className="text-xs font-semibold text-slate-500">
-              Risikofreier Zins (%)
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={baseInputs.ratePct}
-                onChange={(event) =>
-                  updateBaseInput(
-                    "ratePct",
-                    event.target.value === "" ? "" : Number(event.target.value)
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
-              />
-            </label>
-            <label className="text-xs font-semibold text-slate-500">
-              Dividendenrendite (%)
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={baseInputs.dividendYieldPct}
-                onChange={(event) =>
-                  updateBaseInput(
-                    "dividendYieldPct",
-                    event.target.value === "" ? "" : Number(event.target.value)
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
-              />
-            </label>
-            <label className="text-xs font-semibold text-slate-500">
-              FX-Rate (optional)
-              <input
-                type="number"
-                min={0}
-                step={0.0001}
-                value={baseInputs.fxRate}
-                onChange={(event) =>
-                  updateBaseInput(
-                    "fxRate",
-                    event.target.value === "" ? "" : Number(event.target.value)
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
-              />
-            </label>
-            <label className="text-xs font-semibold text-slate-500">
-              Bewertungsstichtag
-              <input
-                type="date"
-                value={baseInputs.valuationDate}
-                onChange={(event) => updateBaseInput("valuationDate", event.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900"
-              />
-            </label>
+        <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                Scenario inputs
+              </h3>
+              <p className="text-xs text-slate-500">
+                Adjust inputs per scenario and compare model outcomes.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCalculate}
+              disabled={!canCalculate || loading}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+            >
+              <span className="material-symbols-outlined text-base">refresh</span>
+              {loading ? "Calculating..." : "Calculate fair value"}
+            </button>
           </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <div className="min-w-[860px]">
+              <div className="grid grid-cols-[180px_repeat(5,minmax(140px,1fr))] gap-2 text-xs text-slate-500">
+                <div />
+                {Array.from({ length: scenarioLimit }, (_, index) => {
+                  const scenario = scenarios[index];
+                  return (
+                    <div
+                      key={`scenario-header-${index}`}
+                      className="flex items-center justify-between rounded-full border border-slate-200/70 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600"
+                    >
+                      <span>{scenario ? scenario.name : `Scenario ${index + 1}`}</span>
+                      {scenario && index > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveScenario(scenario.id)}
+                          className="inline-flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700"
+                          aria-label={`Remove ${scenario.name}`}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">close</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 grid grid-cols-[180px_repeat(5,minmax(140px,1fr))] gap-2 text-xs text-slate-600">
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-3 font-semibold">
+                  Underlying price
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Current {formatMaybe(baseUnderlying, 2)}
+                  </div>
+                </div>
+                {Array.from({ length: scenarioLimit }, (_, index) => {
+                  const scenario = scenarios[index];
+                  const changePct = scenario ? (index === 0 ? 0 : scenario.changePct) : "";
+                  return (
+                    <div key={`row-underlying-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                      {scenario ? (
+                        <input
+                          type="number"
+                          min={-100}
+                          step={0.5}
+                          value={index === 0 ? 0 : changePct}
+                          onChange={(event) =>
+                            updateScenario(
+                              scenario.id,
+                              "changePct",
+                              event.target.value === "" ? "" : Number(event.target.value)
+                            )
+                          }
+                          disabled={index === 0}
+                          className="w-full rounded-lg border border-slate-200/70 bg-white px-2 py-1 text-sm text-slate-700 disabled:opacity-60"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleAddScenario}
+                          disabled={scenarios.length >= scenarioLimit}
+                          className="w-full rounded-lg border border-dashed border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 hover:border-slate-400 disabled:opacity-60"
+                        >
+                          Add scenario
+                        </button>
+                      )}
+                      <div className="mt-1 text-[10px] text-slate-400">% change</div>
+                    </div>
+                  );
+                })}
+
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-3 font-semibold">
+                  Risk-free rate (%)
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Current {formatMaybe(baseRate ? baseRate * 100 : null, 2)}%
+                  </div>
+                </div>
+                {Array.from({ length: scenarioLimit }, (_, index) => (
+                  <div key={`row-rate-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={baseInputs.ratePct}
+                      onChange={(event) =>
+                        updateBaseInput(
+                          "ratePct",
+                          event.target.value === "" ? "" : Number(event.target.value)
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-200/70 bg-white px-2 py-1 text-sm text-slate-700"
+                    />
+                  </div>
+                ))}
+
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-3 font-semibold">
+                  Volatility (%)
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Current {formatMaybe(baseVol ? baseVol * 100 : null, 2)}%
+                  </div>
+                </div>
+                {Array.from({ length: scenarioLimit }, (_, index) => (
+                  <div key={`row-vol-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={baseInputs.volatilityPct}
+                      onChange={(event) =>
+                        updateBaseInput(
+                          "volatilityPct",
+                          event.target.value === "" ? "" : Number(event.target.value)
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-200/70 bg-white px-2 py-1 text-sm text-slate-700"
+                    />
+                  </div>
+                ))}
+
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-3 font-semibold">
+                  FX rate (optional)
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Current {formatMaybe(baseFx, 4)}
+                  </div>
+                </div>
+                {Array.from({ length: scenarioLimit }, (_, index) => (
+                  <div key={`row-fx-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.0001}
+                      value={baseInputs.fxRate}
+                      onChange={(event) =>
+                        updateBaseInput(
+                          "fxRate",
+                          event.target.value === "" ? "" : Number(event.target.value)
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-200/70 bg-white px-2 py-1 text-sm text-slate-700"
+                    />
+                  </div>
+                ))}
+
+                <div className="rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-3 font-semibold">
+                  Valuation date
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    Current {baseInputs.valuationDate || "—"}
+                  </div>
+                </div>
+                {Array.from({ length: scenarioLimit }, (_, index) => (
+                  <div key={`row-date-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <input
+                      type="date"
+                      value={baseInputs.valuationDate}
+                      onChange={(event) => updateBaseInput("valuationDate", event.target.value)}
+                      className="w-full rounded-lg border border-slate-200/70 bg-white px-2 py-1 text-sm text-slate-700"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {missingInputs.length > 0 ? (
             <div className="mt-4 rounded-lg border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Fehlende Eingaben: {missingInputs.join(", ")}.
+              Missing inputs: {missingInputs.join(", ")}.
             </div>
           ) : null}
-        </details>
 
-        <ScenarioComparisonTable
-          scenarios={scenarios}
-          results={results}
-          currency={currency}
-          referencePrice={referenceDisplay}
-          baseUnderlyingPrice={baseUnderlying}
-          onScenarioChange={updateScenario}
-          onRemoveScenario={handleRemoveScenario}
-          onAddScenario={handleAddScenario}
-          maxScenarios={scenarioLimit}
-        />
+          <div className="mt-6 overflow-x-auto">
+            <div className="min-w-[860px] rounded-xl border border-slate-200/70 bg-white">
+              <div className="grid grid-cols-[180px_repeat(5,minmax(140px,1fr))] border-b border-slate-200/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <div className="px-4 py-3">Result</div>
+                {Array.from({ length: scenarioLimit }, (_, index) => (
+                  <div key={`result-head-${index}`} className="px-4 py-3">
+                    {scenarios[index]?.name ?? `Scenario ${index + 1}`}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-[180px_repeat(5,minmax(140px,1fr))] border-b border-slate-200/70 text-sm text-slate-700">
+                <div className="px-4 py-3 font-semibold">Fair value</div>
+                {Array.from({ length: scenarioLimit }, (_, index) => (
+                  <div key={`result-fair-${index}`} className="px-4 py-3">
+                    {formatCurrency(results[index]?.fairValue ?? null, currency)}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-[180px_repeat(5,minmax(140px,1fr))] border-b border-slate-200/70 text-sm text-slate-700">
+                <div className="px-4 py-3 font-semibold">Absolute change</div>
+                {Array.from({ length: scenarioLimit }, (_, index) => {
+                  const value = results[index]?.absChange ?? null;
+                  return (
+                    <div key={`result-abs-${index}`} className="px-4 py-3">
+                      {value === null ? "—" : `${formatMaybe(value)} ${currency}`}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-[180px_repeat(5,minmax(140px,1fr))] text-sm text-slate-700">
+                <div className="px-4 py-3 font-semibold">Relative change</div>
+                {Array.from({ length: scenarioLimit }, (_, index) => {
+                  const value = results[index]?.relChange ?? null;
+                  return (
+                    <div key={`result-rel-${index}`} className="px-4 py-3">
+                      {value === null ? "—" : `${formatMaybe(value)}%`}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
         {selectedInstrument.kind === "position" ? (
           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                  Modellwerte speichern
+                  Save model values
                 </h3>
                 <p className="text-xs text-slate-500">
                   Changes are saved to the project and loaded next time.
@@ -1310,13 +1510,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                 Add to project (ad hoc)
               </h3>
               <p className="text-xs text-slate-500">
-                Save the analyzed ISIN as a project position (buy-in price &amp; quantity
-                erforderlich).
+                Save the analyzed ISIN as a project position (buy-in price &amp; quantity required).
               </p>
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <label className="text-xs font-semibold text-slate-500">
-                Zielprojekt
+                Target project
                 <select
                   value={projectSelection}
                   onChange={(event) => setProjectSelection(event.target.value)}
@@ -1429,5 +1628,3 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
     </div>
   );
 }
-
-

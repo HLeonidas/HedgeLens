@@ -18,7 +18,13 @@ export function buildOptionscheinInput(importData: OnvistaImportData): Optionsch
   const implVola =
     calculator.kpis["impl. volatilität"]?.value ??
     calculator.kpis["impl. volatilitaet"]?.value ??
-    findValue(details.volatilitaet, ["impl. vola", "impl. volatil"]);
+    findValue(details.volatilitaet, [
+      "impl. vola",
+      "impl. volatil",
+      "implizite volatil",
+      "implizite volatilität",
+      "implizite volatilitaet",
+    ]);
 
   const underlyingPrice =
     calculator.scenarioDefaults["kurs basiswert"]?.value ??
@@ -43,10 +49,11 @@ export function buildOptionscheinInput(importData: OnvistaImportData): Optionsch
     findValue(details.kennzahlen, ["wechselkurs"]) ??
     1;
 
+  const scrapedDate = importData.scrapedAt?.slice(0, 10) ?? null;
   const valuationDate =
     calculator.meta.valuationDate ??
     calculator.meta.calcDate ??
-    parseDateGerman(findRaw(details.handelsdaten, ["bewertungstag"]) ?? "") ??
+    scrapedDate ??
     new Date().toISOString().slice(0, 10);
 
   const expiryRaw = findRaw(details.handelsdaten, [

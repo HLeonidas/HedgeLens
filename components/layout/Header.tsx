@@ -33,10 +33,12 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     () => !isIsinQuery && isTickerLike(trimmedQuery),
     [isIsinQuery, trimmedQuery]
   );
+  const hasMagicRow = isIsinQuery;
   const hasCreateRow = isTickerQuery && results.length === 0;
-  const totalRows = results.length + (hasCreateRow ? 1 : 0);
+  const magicOffset = hasMagicRow ? 1 : 0;
+  const totalRows = results.length + (hasCreateRow ? 1 : 0) + (hasMagicRow ? 1 : 0);
 
-  useEffect(() => {
+	useEffect(() => {
 		setDetailLabel(null);
 		const segments = pathname.split("/").filter(Boolean);
 		if (segments.length < 2) return;
@@ -64,7 +66,36 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 		}
 
 		if (segments[0] === "analysis" && segments[1] === "optionsschein-rechner" && segments[2]) {
-			setDetailLabel(segments[2].toUpperCase());
+			const rawId = segments[2];
+			if (isIsin(rawId)) {
+				setDetailLabel(rawId.toUpperCase());
+				return;
+			}
+
+			const controller = new AbortController();
+			void (async () => {
+				try {
+					const response = await fetch("/api/optionsschein/positions", {
+						signal: controller.signal,
+					});
+					const payload = (await response.json().catch(() => null)) as
+						| { positions?: Array<{ id: string; isin?: string | null }> }
+						| null;
+					if (!response.ok || !payload?.positions) return;
+					const match = payload.positions.find((position) => position.id === rawId);
+					if (match?.isin) {
+						setDetailLabel(match.isin.toUpperCase());
+					} else {
+						setDetailLabel(rawId.toUpperCase());
+					}
+				} catch (err) {
+					if ((err as { name?: string }).name !== "AbortError") {
+						setDetailLabel(rawId.toUpperCase());
+					}
+				}
+			})();
+
+			return () => controller.abort();
 		}
 	}, [pathname]);
 
@@ -81,10 +112,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
 		const handle = setTimeout(async () => {
 			setLoading(true);
-			try {
-				const response = await fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, {
-					signal: controller.signal,
-				});
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, {
+          signal: controller.signal,
+        });
 				const payload = (await response.json().catch(() => null)) as
 					| { results?: SearchResult[] }
 					| null;
@@ -93,7 +124,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 					setOpen(false);
 					return;
 				}
-				const next = payload?.results ?? [];
+        const next = payload?.results ?? [];
       setResults(next);
       setActiveIndex(0);
       setOpen(true);
@@ -146,20 +177,17 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     event.preventDefault();
     if (!trimmedQuery) return;
 
-    if (isIsinQuery) {
-			const normalized = trimmedQuery.toUpperCase();
-			const match = results.find(
-				(item) => item.type === "position" && item.isin?.toUpperCase() === normalized
-			);
-			if (!match) {
-				router.push(`/analysis/optionsschein-rechner/${encodeURIComponent(normalized)}`);
-				setOpen(false);
-				return;
-			}
-		}
+    if (hasMagicRow && activeIndex === 0) {
+      handleOpenWarrantCalculator();
+      return;
+    }
 
     if (results.length > 0) {
-      const selected = results[Math.min(activeIndex, results.length - 1)] ?? results[0];
+      const adjustedIndex = Math.min(
+        Math.max(activeIndex - magicOffset, 0),
+        results.length - 1
+      );
+      const selected = results[adjustedIndex] ?? results[0];
       navigateToResult(selected);
       return;
     }
@@ -211,6 +239,13 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     } finally {
       setCreateLoading(false);
     }
+  }
+
+  function handleOpenWarrantCalculator() {
+    if (!isIsinQuery) return;
+    const normalized = trimmedQuery.toUpperCase();
+    router.push(`/analysis/optionsschein-rechner/${encodeURIComponent(normalized)}`);
+    setOpen(false);
   }
 
 	return (
@@ -343,17 +378,49 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
                 <div className={`transition-opacity duration-150 ${loading ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
                   {results.length > 0 ? (
-                    <ul className="max-h-72 overflow-auto">
-                      {results.map((item, index) => {
+                    <div className="max-h-72 overflow-auto">
+                      {hasMagicRow ? (
+                        <div className="px-3 pt-3">
+                          <button
+                            type="button"
+                            onClick={handleOpenWarrantCalculator}
+                            className={[
+                              "w-full rounded-xl border px-3 py-3 text-left shadow-sm transition",
+                              activeIndex === 0
+                                ? "border-indigo-300 bg-indigo-50 shadow-md"
+                                : "border-indigo-200/70 bg-gradient-to-r from-indigo-50/70 via-white to-blue-50/70 hover:border-indigo-300 hover:shadow-md",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 shadow-inner">
+                                <span className="material-symbols-outlined text-[16px]">
+                                  auto_awesome
+                                </span>
+                              </span>
+                              <div className="flex-1">
+                                <div className="text-sm font-semibold text-slate-900">
+                                  Open warrant calculator
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  Use ISIN {trimmedQuery.toUpperCase()} in the calculator.
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      ) : null}
+                      <ul className={hasMagicRow ? "mt-2" : ""}>
+                        {results.map((item, index) => {
                         const parts = item.subtitle.split(" • ");
                         const left = parts[0] ?? "";
                         const right = parts[1] ?? "";
                         const metaLeft = item.type === "project" ? "Project" : left;
+                        const rowIndex = index + magicOffset;
                         return (
                           <li key={`${item.type}-${item.id}`} className="border-b last:border-b-0">
                             <button
                               type="button"
-                              className={`w-full text-left px-4 py-3 ${index === activeIndex ? "bg-slate-100" : "hover:bg-slate-50"}`}
+                              className={`w-full text-left px-4 py-3 ${rowIndex === activeIndex ? "bg-slate-100" : "hover:bg-slate-50"}`}
                               onClick={() => navigateToResult(item)}
                             >
                               <div className="text-sm font-semibold text-slate-900">{item.title}</div>
@@ -365,10 +432,41 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                             </button>
                           </li>
                         );
-                      })}
-                    </ul>
+                        })}
+                      </ul>
+                    </div>
                   ) : (
                     <div className="px-2 py-2 text-xs text-slate-500">
+                      {hasMagicRow ? (
+                        <div className="px-2 py-1">
+                          <button
+                            type="button"
+                            onClick={handleOpenWarrantCalculator}
+                            className={[
+                              "w-full rounded-xl border px-3 py-3 text-left shadow-sm transition",
+                              activeIndex === 0
+                                ? "border-indigo-300 bg-indigo-50 shadow-md"
+                                : "border-indigo-200/70 bg-gradient-to-r from-indigo-50/70 via-white to-blue-50/70 hover:border-indigo-300 hover:shadow-md",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 shadow-inner">
+                                <span className="material-symbols-outlined text-[16px]">
+                                  auto_awesome
+                                </span>
+                              </span>
+                              <div className="flex-1">
+                                <div className="text-sm font-semibold text-slate-900">
+                                  Open warrant calculator
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  Use ISIN {trimmedQuery.toUpperCase()} in the calculator.
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="px-2 py-1">
                         {isIsinQuery
                           ? "No matching ISIN found. Press Enter to open the warrant calculator."
@@ -382,7 +480,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                           type="button"
                           onClick={handleCreateFromTicker}
                           disabled={createLoading}
-                          className={`mt-1 w-full text-left px-3 py-3 rounded-xl border border-slate-200/70 bg-gradient-to-r from-blue-50/70 via-white to-indigo-50/70 shadow-sm transition ${createLoading ? "opacity-70" : "hover:shadow-md hover:border-slate-300"}`}
+                          className={`mt-1 w-full text-left px-3 py-3 rounded-xl border border-slate-200/70 bg-gradient-to-r from-blue-50/70 via-white to-indigo-50/70 shadow-sm transition ${createLoading ? "opacity-70" : "hover:shadow-md hover:border-slate-300"} ${activeIndex === magicOffset ? "ring-1 ring-blue-300" : ""}`}
                         >
                           <div className="flex items-start gap-3">
                             <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 shadow-inner">
