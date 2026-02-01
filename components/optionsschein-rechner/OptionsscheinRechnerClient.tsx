@@ -15,6 +15,7 @@ type PositionItem = {
   projectId: string | null;
   projectName: string;
   baseCurrency: string;
+  currency?: string;
   projectLogoUrl?: string | null;
   projectUnderlyingName?: string | null;
   name?: string;
@@ -36,10 +37,16 @@ type PositionItem = {
     fairValue: number;
     intrinsicValue: number;
     timeValue: number;
+    breakEven?: number | null;
+    agio?: {
+      absolute?: number | null;
+      percent?: number | null;
+    };
     delta: number;
     gamma: number;
     theta: number;
     vega: number;
+    omega?: number | null;
     iv?: number;
     asOf: string;
   };
@@ -106,19 +113,26 @@ type PositionListResponse = {
 type LookupResponse = {
   isin: string;
   name?: string;
+  issuer?: string;
   type: "call" | "put";
+  underlyingName?: string;
   strike: number;
   expiry: string;
   currency: string;
   ratio?: number;
   underlying?: string;
+  settlementType?: "cash" | "physical";
+  multiplier?: number;
   price?: number;
+  bid?: number;
+  ask?: number;
   underlyingPrice?: number;
   volatility?: number;
   rate?: number;
   dividendYield?: number;
   fxRate?: number;
   valuationDate?: string;
+  computed?: PositionItem["computed"];
 };
 
 type ProjectSummary = {
@@ -234,6 +248,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
   const timeValueChartRef = useRef<HTMLDivElement | null>(null);
   const chartInstanceRef = useRef<Highcharts.Chart | null>(null);
   const [initialPending, setInitialPending] = useState(Boolean(initialInstrumentId));
+  const positionLookupRef = useRef<Record<string, boolean>>({});
 
   const filteredPositions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -256,10 +271,12 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
   }, [positions, selectedInstrument]);
 
   const statusQuoResult = results[0] ?? null;
+  const positionComputed =
+    selectedInstrument?.kind === "position" ? selectedInstrument.data.computed ?? null : null;
   const currency =
     statusQuoResult?.currency ??
     (selectedInstrument?.kind === "position"
-      ? selectedInstrument.data.baseCurrency
+      ? selectedInstrument.data.currency ?? selectedInstrument.data.baseCurrency
       : selectedInstrument?.kind === "lookup"
         ? selectedInstrument.data.currency
         : "EUR");
@@ -283,6 +300,22 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
       : selectedInstrument?.kind === "lookup"
         ? selectedInstrument.data.expiry
         : null;
+  const premiumFallback = useMemo(() => {
+    const breakEven =
+      statusQuoResult?.breakEven ??
+      positionComputed?.breakEven ??
+      null;
+    const underlying =
+      baseUnderlying ??
+      (selectedInstrument?.kind === "position"
+        ? selectedInstrument.data.underlyingPrice ?? null
+        : null);
+    if (!breakEven || !underlying || !Number.isFinite(breakEven) || !Number.isFinite(underlying)) {
+      return null;
+    }
+    if (underlying <= 0) return null;
+    return (breakEven - underlying) / underlying;
+  }, [baseUnderlying, positionComputed?.breakEven, selectedInstrument, statusQuoResult?.breakEven]);
 
   const metricsSections = [
     {
@@ -301,16 +334,23 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
         {
           label: "Premium",
           value:
-            statusQuoResult?.premium === null || statusQuoResult?.premium === undefined
-              ? "—"
-              : formatPercent(statusQuoResult.premium * 100),
+            statusQuoResult?.premium !== null && statusQuoResult?.premium !== undefined
+              ? formatPercent(statusQuoResult.premium * 100)
+              : positionComputed?.agio?.percent !== null &&
+                  positionComputed?.agio?.percent !== undefined
+                ? formatPercent(positionComputed.agio.percent)
+                : premiumFallback !== null
+                  ? formatPercent(premiumFallback * 100)
+                  : "—",
         },
         {
           label: "Break-even",
           value:
-            statusQuoResult?.breakEven === null || statusQuoResult?.breakEven === undefined
-              ? "—"
-              : formatMaybe(statusQuoResult.breakEven),
+            statusQuoResult?.breakEven !== null && statusQuoResult?.breakEven !== undefined
+              ? formatMaybe(statusQuoResult.breakEven)
+              : positionComputed?.breakEven !== null && positionComputed?.breakEven !== undefined
+                ? formatMaybe(positionComputed.breakEven)
+                : "—",
         },
         {
           label: "Implied volatility",
@@ -328,22 +368,31 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
     {
       title: "Valuation",
       items: [
-        { label: "Fair value", value: formatCurrency(statusQuoResult?.fairValue, currency) },
+        {
+          label: "Fair value",
+          value: formatCurrency(statusQuoResult?.fairValue ?? positionComputed?.fairValue ?? null, currency),
+        },
         {
           label: "Intrinsic value",
-          value: formatCurrency(statusQuoResult?.intrinsicValue, currency),
+          value: formatCurrency(
+            statusQuoResult?.intrinsicValue ?? positionComputed?.intrinsicValue ?? null,
+            currency
+          ),
         },
-        { label: "Time value", value: formatCurrency(statusQuoResult?.timeValue, currency) },
+        {
+          label: "Time value",
+          value: formatCurrency(statusQuoResult?.timeValue ?? positionComputed?.timeValue ?? null, currency),
+        },
       ],
     },
     {
       title: "Greeks",
       items: [
-        { label: "Delta", value: formatMaybe(statusQuoResult?.delta, 4) },
-        { label: "Gamma", value: formatMaybe(statusQuoResult?.gamma, 4) },
-        { label: "Theta", value: formatMaybe(statusQuoResult?.theta, 4) },
-        { label: "Vega", value: formatMaybe(statusQuoResult?.vega, 4) },
-        { label: "Omega", value: formatMaybe(statusQuoResult?.omega, 4) },
+        { label: "Delta", value: formatMaybe(statusQuoResult?.delta ?? positionComputed?.delta, 4) },
+        { label: "Gamma", value: formatMaybe(statusQuoResult?.gamma ?? positionComputed?.gamma, 4) },
+        { label: "Theta", value: formatMaybe(statusQuoResult?.theta ?? positionComputed?.theta, 4) },
+        { label: "Vega", value: formatMaybe(statusQuoResult?.vega ?? positionComputed?.vega, 4) },
+        { label: "Omega", value: formatMaybe(statusQuoResult?.omega ?? positionComputed?.omega, 4) },
       ],
     },
   ];
@@ -525,8 +574,114 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
   function handlePositionSelect(position: PositionItem, options?: { skipNav?: boolean }) {
     setSelectedInstrument({ kind: "position", data: position });
     hydrateInputs({ kind: "position", data: position });
+    void hydratePositionFromLookup(position);
     if (!options?.skipNav) {
       router.push(`/analysis/optionsschein-rechner/${position.id}`);
+    }
+  }
+
+  async function hydratePositionFromLookup(position: PositionItem) {
+    if (!position.isin) return;
+    if (positionLookupRef.current[position.id]) return;
+    const needsLookup =
+      position.strike === undefined ||
+      position.expiry === undefined ||
+      position.underlyingPrice === undefined ||
+      position.volatility === undefined ||
+      position.rate === undefined;
+    if (!needsLookup) return;
+
+    positionLookupRef.current[position.id] = true;
+    try {
+      const response = await fetch("/api/isin/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isin: position.isin }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | LookupResponse
+        | { error?: string }
+        | null;
+      if (!response.ok || !payload || "error" in payload || !("isin" in payload)) {
+        return;
+      }
+
+      const mergedComputed = (() => {
+        if (!position.computed) return payload.computed ?? undefined;
+        if (!payload.computed) return position.computed;
+        return {
+          ...payload.computed,
+          ...position.computed,
+          fairValue: position.computed.fairValue ?? payload.computed.fairValue,
+          intrinsicValue: position.computed.intrinsicValue ?? payload.computed.intrinsicValue,
+          timeValue: position.computed.timeValue ?? payload.computed.timeValue,
+          breakEven: position.computed.breakEven ?? payload.computed.breakEven,
+          delta: position.computed.delta ?? payload.computed.delta,
+          gamma: position.computed.gamma ?? payload.computed.gamma,
+          theta: position.computed.theta ?? payload.computed.theta,
+          vega: position.computed.vega ?? payload.computed.vega,
+          omega: position.computed.omega ?? payload.computed.omega,
+          iv: position.computed.iv ?? payload.computed.iv,
+          agio: position.computed.agio ?? payload.computed.agio,
+          asOf: position.computed.asOf ?? payload.computed.asOf,
+        };
+      })();
+
+      const merged: PositionItem = {
+        ...position,
+        name: position.name ?? payload.name,
+        strike: position.strike ?? payload.strike,
+        expiry: position.expiry ?? payload.expiry,
+        ratio: position.ratio ?? payload.ratio,
+        underlyingSymbol: position.underlyingSymbol ?? payload.underlying,
+        marketPrice: position.marketPrice ?? payload.price,
+        underlyingPrice: position.underlyingPrice ?? payload.underlyingPrice,
+        volatility: position.volatility ?? payload.volatility,
+        rate: position.rate ?? payload.rate,
+        dividendYield: position.dividendYield ?? payload.dividendYield,
+        computed: mergedComputed,
+      };
+
+      setSelectedInstrument((current) => {
+        if (!current || current.kind !== "position") return current;
+        if (current.data.id !== position.id) return current;
+        return { kind: "position", data: merged };
+      });
+
+      setBaseInputs((prev) => {
+        const shouldReplaceNumber = (value: number | "") =>
+          value === "" || !Number.isFinite(Number(value)) || Number(value) <= 0;
+        const nextUnderlying =
+          shouldReplaceNumber(prev.underlyingPrice) && payload.underlyingPrice !== undefined
+            ? Number(payload.underlyingPrice)
+            : prev.underlyingPrice;
+        const nextVol =
+          shouldReplaceNumber(prev.volatilityPct) && payload.volatility !== undefined
+            ? Number((payload.volatility * 100).toFixed(4))
+            : prev.volatilityPct;
+        const nextFx =
+          shouldReplaceNumber(prev.fxRate) && payload.fxRate !== undefined
+            ? Number(payload.fxRate)
+            : prev.fxRate;
+
+        return {
+          ...prev,
+          underlyingPrice: nextUnderlying,
+          ratePct:
+            prev.ratePct === "" && payload.rate !== undefined
+              ? Number((payload.rate * 100).toFixed(4))
+              : prev.ratePct,
+          volatilityPct: nextVol,
+          dividendYieldPct:
+            prev.dividendYieldPct === "" && payload.dividendYield !== undefined
+              ? Number((payload.dividendYield * 100).toFixed(4))
+              : prev.dividendYieldPct,
+          fxRate: nextFx,
+          valuationDate: prev.valuationDate || payload.valuationDate || prev.valuationDate,
+        };
+      });
+    } catch {
+      // Ignore lookup failures; position remains as-is.
     }
   }
 
@@ -1194,7 +1349,21 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
               </div>
             </button>
           ) : selectedInstrument.kind === "lookup" && isinProjectMatches.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-2 text-[11px] text-slate-500">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const match = isinProjectMatches[0];
+                  if (match) {
+                    router.push(`/analysis/optionsschein-rechner/${match.id}`);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-sm hover:border-slate-300"
+              >
+                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                Open position
+              </button>
+              <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-2 text-[11px] text-slate-500">
               <span className="uppercase tracking-wider text-[10px] text-slate-400">
                 Already in
               </span>
@@ -1236,6 +1405,7 @@ export function OptionsscheinRechnerClient({ initialInstrumentId }: Optionsschei
                   </button>
                 );
               })}
+            </div>
             </div>
           ) : null}
         </div>
